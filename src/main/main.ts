@@ -14,6 +14,10 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import atomically from 'atomically';
+import { registerMqttIpcHandlers } from './ipc/mqtt';
+import { registerFileIpcHandlers } from './ipc/files';
+import { registerMqttTestHandler } from './ipc/mqtt';
 
 class AppUpdater {
   constructor() {
@@ -29,6 +33,10 @@ ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.on('ipc-ready-check', (event) => {
+  event.returnValue = true;
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -57,6 +65,10 @@ const installExtensions = async () => {
 };
 
 const createWindow = async () => {
+  registerMqttIpcHandlers();
+  registerFileIpcHandlers();
+  registerMqttTestHandler();
+
   if (isDebug) {
     await installExtensions();
   }
@@ -78,6 +90,8 @@ const createWindow = async () => {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
@@ -107,6 +121,9 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
+  }
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
   new AppUpdater();
@@ -124,6 +141,16 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Atomic file write exposed to renderer
+ipcMain.handle(
+  'write-file-atomic',
+  async (_event, filePath: string, data: string) => {
+    const fullPath = path.resolve(app.getPath('userData'), filePath);
+    await atomically.writeFile(fullPath, data);
+    return true;
+  },
+);
+
 app
   .whenReady()
   .then(() => {
@@ -135,3 +162,4 @@ app
     });
   })
   .catch(console.log);
+

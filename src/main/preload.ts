@@ -1,29 +1,53 @@
-// Disable no-unused-vars, broken for spread args
-/* eslint no-unused-vars: off */
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  MqttConnectionProfile,
+  MqttTestResult,
+} from '../renderer/views/Settings/subviews/types';
 
-export type Channels = 'ipc-example';
+type MqttProfilesMap = Record<string, MqttConnectionProfile>;
 
-const electronHandler = {
-  ipcRenderer: {
-    sendMessage(channel: Channels, ...args: unknown[]) {
-      ipcRenderer.send(channel, ...args);
-    },
-    on(channel: Channels, func: (...args: unknown[]) => void) {
-      const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
-        func(...args);
-      ipcRenderer.on(channel, subscription);
+export interface MqttSettingsAPI {
+  // Profiles
+  getMqttProfiles: () => Promise<Record<string, MqttConnectionProfile>>;
+  upsertMqttProfile: (profile: MqttConnectionProfile) => Promise<void>;
+  deleteMqttProfile: (profileId: string) => Promise<void>;
+  testMqttConnection: (
+    profile: MqttConnectionProfile,
+  ) => Promise<MqttTestResult>;
 
-      return () => {
-        ipcRenderer.removeListener(channel, subscription);
-      };
-    },
-    once(channel: Channels, func: (...args: unknown[]) => void) {
-      ipcRenderer.once(channel, (_event, ...args) => func(...args));
-    },
-  },
-};
+  // Passwords (secure via keytar in main process)
+  setMqttPassword: (profileId: string, password: string) => Promise<void>;
+  getMqttPassword: (profileId: string) => Promise<string | null>;
+  deleteMqttPassword: (profileId: string) => Promise<void>;
+}
 
-contextBridge.exposeInMainWorld('electron', electronHandler);
+contextBridge.exposeInMainWorld('electronAPI', {
+  writeFileAtomic: (filePath: string, data: string) =>
+    ipcRenderer.invoke('write-file-atomic', filePath, data),
+});
 
-export type ElectronHandler = typeof electronHandler;
+contextBridge.exposeInMainWorld('settingsAPI', {
+  // --- MQTT Profiles ---
+  getMqttProfiles: () => ipcRenderer.invoke('mqtt:getProfiles'),
+  upsertMqttProfile: (profile: MqttConnectionProfile) =>
+    ipcRenderer.invoke('mqtt:upsertProfile', profile),
+  deleteMqttProfile: (profileId: string) =>
+    ipcRenderer.invoke('mqtt:deleteProfile', profileId),
+  testMqttConnection: (profile: MqttConnectionProfile) =>
+    ipcRenderer.invoke('mqtt:testConnection', profile),
+
+  // --- Secure Passwords ---
+  setMqttPassword: (profileId: string, password: string) =>
+    ipcRenderer.invoke('mqtt:setPassword', profileId, password),
+  getMqttPassword: (profileId: string) =>
+    ipcRenderer.invoke('mqtt:getPassword', profileId),
+  deleteMqttPassword: (profileId: string) =>
+    ipcRenderer.invoke('mqtt:deletePassword', profileId),
+} as MqttSettingsAPI);
+
+contextBridge.exposeInMainWorld('fileAPI', {
+  openFile: (options: Electron.OpenDialogOptions): Promise<string | null> =>
+    ipcRenderer.invoke('file:open', options),
+});
+
+ipcRenderer.sendSync('ipc-ready-check');
