@@ -1,12 +1,15 @@
-import { ipcMain } from 'electron';
-import store from '../store';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';import store from '../store';
 //import { MqttConnectionProfile } from '../../renderer/views/Settings/subviews/types';
-import mqtt from 'mqtt';
+import mqtt, { MqttClient, IClientOptions, Packet } from 'mqtt';
 import fs from 'fs';
 import type {
   MqttConnectionProfile,
   MqttTestResult,
 } from '../../renderer/views/Settings/subviews/types';
+
+
+
+let client: MqttClient | null = null;
 
 type MqttProfilesMap = Record<string, MqttConnectionProfile>;
 
@@ -130,4 +133,64 @@ export function registerMqttTestHandler() {
       }
     },
   );
+}
+
+
+export function registerMqttConnectHandler() {
+  // Connect to MQTT broker
+  ipcMain.handle('mqtt/connect', (event: IpcMainInvokeEvent, options: IClientOptions & { url: string }) => {
+    return new Promise<string>((resolve, reject) => {
+      if (client) client.end(); // disconnect previous connection
+      client = mqtt.connect(options.url, options);
+
+      client.on('connect', () => {
+        console.log('MQTT connected');
+        resolve('connected');
+      });
+
+      client.on('error', (err: Error) => {
+        console.error('MQTT error', err);
+        reject(err.message);
+      });
+
+      // Forward messages to renderer
+      client.on('message', (topic: string, message: Buffer, packet: Packet) => {
+        event.sender.send('mqtt/message', { topic, message: message.toString() });
+      });
+    });
+  });
+
+  // Disconnect from MQTT broker
+  ipcMain.handle('mqtt/disconnect', () => {
+    return new Promise<string>((resolve, reject) => {
+      if (!client) return resolve('No active connection');
+      client.end(false, {}, () => {
+        console.log('MQTT disconnected');
+        client = null;
+        resolve('disconnected');
+      });
+    });
+  });
+
+  // Subscribe to topics
+  ipcMain.handle('mqtt/subscribe', (event: IpcMainInvokeEvent, topic: string) => {
+    return new Promise<string>((resolve, reject) => {
+      if (!client) return reject('Not connected');
+      client.subscribe(topic, (err, granted) => {
+        if (err) reject(err.message);
+        else resolve(`Subscribed to ${topic}`);
+      });
+    });
+  });
+
+  // Publish message
+  ipcMain.handle('mqtt/publish', (event: IpcMainInvokeEvent, { topic, message }: { topic: string; message: string }) => {
+    return new Promise<string>((resolve, reject) => {
+      if (!client) return reject('Not connected');
+      client.publish(topic, message, (err) => {
+        if (err) reject(err.message);
+        else resolve(`Published to ${topic}`);
+      });
+    });
+  });
 }

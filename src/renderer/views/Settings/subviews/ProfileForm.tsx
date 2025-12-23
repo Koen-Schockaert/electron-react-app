@@ -17,12 +17,16 @@ import { LabeledInput } from '../../../components/form/LabeledInput';
 import { LabeledSelect } from '../../../components/form/LabeledSelect';
 import { LabeledSwitch } from '../../../components/form/LabeledSwitch';
 import { CertificateField } from '../../../components/form/CertificateField';
+import { useMqtt } from '../../../context/MqttContext'
 
 interface ProfileFormProps {
   profile: MqttConnectionProfile | null;
   onSave: (profile: MqttConnectionProfile, password?: string) => void;
   onCancel?: () => void;
+  onDisconnect?: () => void;
+  connected?: boolean;
 }
+
 
 const protocols = ['mqtt', 'mqtts', 'ws', 'wss'] as const;
 
@@ -45,6 +49,8 @@ export default function ProfileForm({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<MqttTestResult | null>(null);
   const [password, setPassword] = useState('');
+  //const [connected, setConnected] = useState(false);
+  const { connected, setConnected, setClientProfile } = useMqtt();
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
 
   useEffect(() => {
@@ -79,6 +85,33 @@ export default function ProfileForm({
       setTesting(false);
     }
   };
+
+  const handleConnect = async () => {
+  setTesting(true);
+  try {
+    await window.mqttAPI.connect({
+      url: `${form.protocol}://${form.host}:${form.port}`,
+      username: form.username,
+      password: form.password,
+      // remove unknown props: clean, keepAlive, caPath, certPath, keyPath
+    });
+    setConnected(true);
+    setTestResult({ success: true, message: 'Connected!' });
+  } catch (err: any) {
+    setConnected(false);
+    setTestResult({ success: false, message: `Connection failed: ${err.message || err}` });
+  } finally {
+    setTesting(false);
+  }
+};
+
+
+  const handleDisconnect = async () => {
+    await window.mqttAPI.disconnect();
+    setConnected(false);
+    setTestResult({ success: false, message: 'Disconnected' });
+  };
+
 
   return (
     <Box sx={{ p: 2 }}>
@@ -183,6 +216,15 @@ export default function ProfileForm({
           >
             Test Connection
           </Button>
+
+          <Button
+            variant="outlined"
+            color={connected ? 'danger' : 'primary'}
+            onClick={connected ? handleDisconnect : handleConnect}
+          >
+            {connected ? 'Disconnect' : 'Connect'}
+          </Button>
+
 
           {testResult && (
             <Typography

@@ -18,6 +18,7 @@ import atomically from 'atomically';
 import { registerMqttIpcHandlers } from './ipc/mqtt';
 import { registerFileIpcHandlers } from './ipc/files';
 import { registerMqttTestHandler } from './ipc/mqtt';
+import { registerMqttConnectHandler } from './ipc/mqtt';
 
 class AppUpdater {
   constructor() {
@@ -68,6 +69,7 @@ const createWindow = async () => {
   registerMqttIpcHandlers();
   registerFileIpcHandlers();
   registerMqttTestHandler();
+  registerMqttConnectHandler();
 
   if (isDebug) {
     await installExtensions();
