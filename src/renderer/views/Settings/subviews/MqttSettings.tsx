@@ -4,6 +4,7 @@ import type { MqttConnectionProfile } from './types';
 import ProfileList from './ProfileList';
 import ProfileForm from './ProfileForm';
 import { v4 as uuidv4 } from 'uuid';
+import { useMqtt } from '../../../context/MqttContext';
 
 export default function MqttSettings() {
   const [profiles, setProfiles] = useState<
@@ -13,6 +14,7 @@ export default function MqttSettings() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [draftProfile, setDraftProfile] =
     useState<MqttConnectionProfile | null>(null);
+  const { connected, clientProfile } = useMqtt();
 
   const loadProfiles = async () => {
     const loaded = await window.settingsAPI.getMqttProfiles();
@@ -61,6 +63,8 @@ export default function MqttSettings() {
       <ProfileList
         profiles={profiles}
         activeId={activeId}
+        connected={connected}
+        connectedProfileId={clientProfile?.id ?? null}
         onSelect={(id) => {
           setDraftProfile(null);
           setActiveId(id);

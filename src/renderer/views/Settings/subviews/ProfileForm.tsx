@@ -17,7 +17,7 @@ import { LabeledInput } from '../../../components/form/LabeledInput';
 import { LabeledSelect } from '../../../components/form/LabeledSelect';
 import { LabeledSwitch } from '../../../components/form/LabeledSwitch';
 import { CertificateField } from '../../../components/form/CertificateField';
-import { useMqtt } from '../../../context/MqttContext'
+import { useMqtt } from '../../../context/MqttContext';
 
 interface ProfileFormProps {
   profile: MqttConnectionProfile | null;
@@ -26,7 +26,6 @@ interface ProfileFormProps {
   onDisconnect?: () => void;
   connected?: boolean;
 }
-
 
 const protocols = ['mqtt', 'mqtts', 'ws', 'wss'] as const;
 
@@ -50,11 +49,33 @@ export default function ProfileForm({
   const [testResult, setTestResult] = useState<MqttTestResult | null>(null);
   const [password, setPassword] = useState('');
   //const [connected, setConnected] = useState(false);
-  const { connected, setConnected, setClientProfile } = useMqtt();
+  const { connected, setConnected, setClientProfile, clientProfile  } = useMqtt();
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
+  const isActiveProfile =
+  connected && clientProfile?.id === profile?.id;
+
+
+  const SectionHeader = ({ title }: { title: string }) => (
+    <Typography
+      level="title-sm"
+      sx={{
+        mt: 2,
+        mb: 1,
+        color: 'text.secondary',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+      }}
+    >
+      {title}
+    </Typography>
+  );
 
   useEffect(() => {
-    if (profile) setForm(profile);
+    if (profile) {
+    setForm(profile);
+    setTestResult(null);   // ✅ reset test result
+    setTesting(false);
+  }
   }, [profile]);
 
   const handleChange = <K extends keyof MqttConnectionProfile>(
@@ -87,24 +108,28 @@ export default function ProfileForm({
   };
 
   const handleConnect = async () => {
-  setTesting(true);
-  try {
-    await window.mqttAPI.connect({
-      url: `${form.protocol}://${form.host}:${form.port}`,
-      username: form.username,
-      password: form.password,
-      // remove unknown props: clean, keepAlive, caPath, certPath, keyPath
-    });
-    setConnected(true);
-    setTestResult({ success: true, message: 'Connected!' });
-  } catch (err: any) {
-    setConnected(false);
-    setTestResult({ success: false, message: `Connection failed: ${err.message || err}` });
-  } finally {
-    setTesting(false);
-  }
-};
-
+    setTesting(true);
+    try {
+      await window.mqttAPI.connect({
+        url: `${form.protocol}://${form.host}:${form.port}`,
+        username: form.username,
+        password: form.password,
+        // remove unknown props: clean, keepAlive, caPath, certPath, keyPath
+      });
+      setConnected(true);
+      setClientProfile(profile);
+      setTestResult({ success: true, message: 'Connected!' });
+    } catch (err: any) {
+      setConnected(false);
+      setClientProfile(null);
+      setTestResult({
+        success: false,
+        message: `Connection failed: ${err.message || err}`,
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const handleDisconnect = async () => {
     await window.mqttAPI.disconnect();
@@ -112,103 +137,137 @@ export default function ProfileForm({
     setTestResult({ success: false, message: 'Disconnected' });
   };
 
-
   return (
     <Box sx={{ p: 2 }}>
       <Stack spacing={2}>
-        <LabeledInput
-          label="Name"
-          value={form.name}
-          onChange={(value: string) => handleChange('name', value)}
-        />
+        <SectionHeader title="Connection" />
 
-        <LabeledInput
-          label="Host"
-          value={form.host}
-          onChange={(value: string) => handleChange('host', value)}
-        />
+<LabeledInput
+  label="Name"
+  value={form.name}
+  onChange={(value: string) => handleChange('name', value)}
+/>
 
-        <LabeledInput
-          label="Port"
-          type="number"
-          value={form.port}
-          onChange={(value: string) => handleChange('port', Number(value))}
-        />
+<Stack direction="row" spacing={2}>
+  <Box sx={{ flex: 2 }}>
+    <LabeledInput
+      label="Host"
+      value={form.host}
+      onChange={(value: string) => handleChange('host', value)}
+    />
+  </Box>
 
-        <LabeledInput
-          label="Username"
-          value={form.username ?? ''}
-          onChange={(value: string) =>
-            handleChange('username', value || undefined)
-          }
-        />
+  <Box sx={{ flex: 1 }}>
+    <LabeledInput
+      label="Port"
+      type="number"
+      value={form.port}
+      onChange={(value: string) => handleChange('port', Number(value))}
+    />
+  </Box>
+</Stack>
 
-        <LabeledInput
-          label="Password"
-          type="password"
-          value={form.password ?? ''}
-          onChange={(value: string) =>
-            handleChange('password', value || undefined)
-          }
-        />
+<LabeledSelect
+  label="Protocol"
+  value={form.protocol}
+  options={[
+    { label: 'mqtt', value: 'mqtt' },
+    { label: 'mqtts', value: 'mqtts' },
+    { label: 'ws', value: 'ws' },
+    { label: 'wss', value: 'wss' },
+  ]}
+  onChange={(value) => handleChange('protocol', value)}
+/>
 
-        <LabeledSelect
-          label="Protocol"
-          value={form.protocol}
-          options={[
-            { label: 'mqtt', value: 'mqtt' },
-            { label: 'mqtts', value: 'mqtts' },
-            { label: 'ws', value: 'ws' },
-            { label: 'wss', value: 'wss' },
-          ]}
-          onChange={(value) => handleChange('protocol', value)}
-        />
+<Stack direction="row" spacing={2} alignItems="center">
+  <Box sx={{ flex: 1 }}>
+    <LabeledSwitch
+      label="Clean Session"
+      checked={form.cleanSession}
+      onChange={(checked) => handleChange('cleanSession', checked)}
+    />
+  </Box>
 
-        {['mqtts', 'wss'].includes(form.protocol) && (
-          <>
-            <CertificateField
-              label="CA Certificate"
-              value={form.caPath}
-              onChange={(path) => handleChange('caPath', path)}
-            />
+  <Box sx={{ flex: 1 }}>
+    <LabeledInput
+      label="Keep Alive"
+      type="number"
+      value={form.keepAlive}
+      onChange={(value: string) =>
+        handleChange('keepAlive', Number(value))
+      }
+    />
+  </Box>
+</Stack>
+<SectionHeader title="Authentication" />
 
-            <CertificateField
-              label="Client Certificate"
-              value={form.certPath}
-              onChange={(path) => handleChange('certPath', path)}
-            />
+<Stack direction="row" spacing={2}>
+  <Box sx={{ flex: 1 }}>
+    <LabeledInput
+      label="Username"
+      value={form.username ?? ''}
+      onChange={(value: string) =>
+        handleChange('username', value || undefined)
+      }
+    />
+  </Box>
 
-            <CertificateField
-              label="Client Key"
-              value={form.keyPath}
-              onChange={(path) => handleChange('keyPath', path)}
-            />
-          </>
-        )}
+  <Box sx={{ flex: 1 }}>
+    <LabeledInput
+      label="Password"
+      type="password"
+      value={form.password ?? ''}
+      onChange={(value: string) =>
+        handleChange('password', value || undefined)
+      }
+    />
+  </Box>
+</Stack>
+{['mqtts', 'wss'].includes(form.protocol) && (
+  <>
+    <SectionHeader title="TLS / Certificates" />
 
-        <LabeledSwitch
-          label="Clean Session"
-          checked={form.cleanSession}
-          onChange={(checked) => handleChange('cleanSession', checked)}
-        />
+    <CertificateField
+      label="CA Certificate"
+      value={form.caPath}
+      onChange={(path) => handleChange('caPath', path)}
+    />
 
-        <LabeledInput
-          label="Keep Alive"
-          type="number"
-          value={form.keepAlive}
-          onChange={(value: string) => handleChange('keepAlive', Number(value))}
-        />
+    <CertificateField
+      label="Client Certificate"
+      value={form.certPath}
+      onChange={(path) => handleChange('certPath', path)}
+    />
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button onClick={handleSave}>Save</Button>
-          {onCancel && (
-            <Button variant="outlined" onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
-        </Box>
+    <CertificateField
+      label="Client Key"
+      value={form.keyPath}
+      onChange={(path) => handleChange('keyPath', path)}
+    />
+  </>
+)}
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+<SectionHeader title="Actions" />
+
+<Box sx={{ display: 'flex', gap: 1 }}>
+  <Button onClick={handleSave}>Save</Button>
+
+  {onCancel && (
+    <Button variant="outlined" onClick={onCancel}>
+      Cancel
+    </Button>
+  )}
+
+<Button
+            variant="outlined"
+            color={connected ? 'danger' : 'primary'}
+            onClick={connected ? handleDisconnect : handleConnect}
+          >
+            {connected ? 'Disconnect' : 'Connect'}
+          </Button>
+</Box>
+
+<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
           <Button
             variant="outlined"
             loading={testing}
@@ -217,13 +276,6 @@ export default function ProfileForm({
             Test Connection
           </Button>
 
-          <Button
-            variant="outlined"
-            color={connected ? 'danger' : 'primary'}
-            onClick={connected ? handleDisconnect : handleConnect}
-          >
-            {connected ? 'Disconnect' : 'Connect'}
-          </Button>
 
 
           {testResult && (
@@ -233,8 +285,10 @@ export default function ProfileForm({
             >
               {testResult.message}
             </Typography>
-          )}
-        </Box>
+             )}
+</Box>
+
+
       </Stack>
     </Box>
   );

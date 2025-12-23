@@ -1,27 +1,34 @@
 import React, { useState } from 'react';
-import { Button, TextField, List, ListItem, ListItemText, Box, Typography } from '@mui/material';
+import {
+  Button,
+  TextField,
+  List,
+  ListItem,
+  ListItemText,
+  Box,
+  Typography,
+} from '@mui/material';
 import { useMqtt } from '../../context/MqttContext';
+import { Chip } from '@mui/joy';
 
 const MqttView: React.FC = () => {
-  const {
-    messages,
-    subscribedTopics,
-    addMessage,
-    addSubscribedTopic,
-  } = useMqtt();
+  const { messages, subscribedTopics, addMessage, addSubscribedTopic } =
+    useMqtt();
 
   const [subscribeTopic, setSubscribeTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
   const [publishMessage, setPublishMessage] = useState('');
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
-  const { connected } = useMqtt();
+  const { connected, clientProfile } = useMqtt();
+
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSubscribe = async () => {
-    if (!subscribeTopic.trim()) return alert('Please enter a topic to subscribe.');
+    if (!subscribeTopic.trim())
+      return alert('Please enter a topic to subscribe.');
     try {
       await window.mqttAPI.subscribe(subscribeTopic);
       addSubscribedTopic(subscribeTopic);
@@ -42,19 +49,22 @@ const MqttView: React.FC = () => {
   };
 
   if (!connected) {
-  return (
-    <Box sx={{ p: 3 }}>
-      <Typography color="warning">
-        Not connected to an MQTT broker.
-      </Typography>
-    </Box>
-  );
-}
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography color="warning">
+          Not connected to an MQTT broker.
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3 }}>
+      <Chip color={connected ? 'success' : 'danger'} variant="soft">
+        {connected ? `Connected to "${clientProfile?.name ?? 'Unknown profile'}"` : 'MQTT Disconnected'}
+      </Chip>
       <Typography variant="h5" gutterBottom>
-        MQTT Live Messages {connected ? '(Connected)' : '(Disconnected)'}
+        MQTT Live Messages 
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
@@ -72,7 +82,14 @@ const MqttView: React.FC = () => {
       {subscribedTopics.length > 0 && (
         <Box sx={{ mb: 2 }}>
           <Typography variant="body1">Subscribed Topics:</Typography>
-          <List sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 1 }}>
+          <List
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
             {subscribedTopics.map((t) => (
               <ListItem
                 key={t}
@@ -114,7 +131,14 @@ const MqttView: React.FC = () => {
       <Typography variant="h6" gutterBottom>
         Messages
       </Typography>
-      <Box sx={{ maxHeight: 400, overflowY: 'auto', border: '1px solid #ccc', borderRadius: 1 }}>
+      <Box
+        sx={{
+          maxHeight: 400,
+          overflowY: 'auto',
+          border: '1px solid #ccc',
+          borderRadius: 1,
+        }}
+      >
         <List>
           {messages.map((m, index) => (
             <ListItem key={index} divider component="div">

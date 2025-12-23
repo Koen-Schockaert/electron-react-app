@@ -1,9 +1,11 @@
-import { List, ListItem, Typography, Button, Box } from '@mui/joy';
+import { List, ListItem, Typography, Button, Box, Chip } from '@mui/joy';
 import type { MqttConnectionProfile } from './types';
 
 interface ProfileListProps {
   profiles: Record<string, MqttConnectionProfile>;
   activeId: string | null;
+  connectedProfileId: string | null;
+  connected: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
@@ -12,6 +14,8 @@ interface ProfileListProps {
 export default function ProfileList({
   profiles,
   activeId,
+  connectedProfileId,
+  connected,
   onSelect,
   onDelete,
   onCreate,
@@ -25,32 +29,49 @@ export default function ProfileList({
       </Box>
 
       <List>
-        {Object.values(profiles).map((profile) => (
-          <ListItem
-            key={profile.id}
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              bgcolor: profile.id === activeId ? 'neutral.softBg' : undefined,
-              cursor: 'pointer',
-            }}
-            onClick={() => onSelect(profile.id)}
-          >
-            <Typography level="body-sm">{profile.name}</Typography>
-            <Button
-              size="sm"
-              color="danger"
-              variant="outlined"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(profile.id);
+        {Object.values(profiles).map((profile) => {
+          const isConnected = connected && connectedProfileId === profile.id;
+          const isDisabled = connected && !isConnected;
+
+          return (
+            <ListItem
+              key={profile.id}
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                bgcolor: profile.id === activeId ? 'neutral.softBg' : undefined,
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                opacity: isDisabled ? 0.5 : 1,
+                px: 1,
+              }}
+              onClick={() => {
+                if (!isDisabled) onSelect(profile.id);
               }}
             >
-              Delete
-            </Button>
-          </ListItem>
-        ))}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography level="body-sm">{profile.name || 'Unnamed'}</Typography>
+                {isConnected && (
+                  <Chip size="sm" color="success" variant="soft">
+                    Connected
+                  </Chip>
+                )}
+              </Box>
+
+              <Button
+                size="sm"
+                color="danger"
+                variant="outlined"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(profile.id);
+                }}
+              >
+                Delete
+              </Button>
+            </ListItem>
+          );
+        })}
       </List>
     </Box>
   );
