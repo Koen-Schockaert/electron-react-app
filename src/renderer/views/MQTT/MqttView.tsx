@@ -64,7 +64,7 @@ const MqttView: React.FC = () => {
         {connected ? `Connected to "${clientProfile?.name ?? 'Unknown profile'}"` : 'MQTT Disconnected'}
       </Chip>
       <Typography variant="h5" gutterBottom>
-        MQTT Live Messages 
+        MQTT Live Messages {connected ? '(Connected)' : '(Disconnected)'}
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>

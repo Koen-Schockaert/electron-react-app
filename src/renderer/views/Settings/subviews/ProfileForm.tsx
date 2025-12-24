@@ -49,11 +49,10 @@ export default function ProfileForm({
   const [testResult, setTestResult] = useState<MqttTestResult | null>(null);
   const [password, setPassword] = useState('');
   //const [connected, setConnected] = useState(false);
-  const { connected, setConnected, setClientProfile, clientProfile  } = useMqtt();
+  const { connected, setConnected, setClientProfile, clientProfile } =
+    useMqtt();
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
-  const isActiveProfile =
-  connected && clientProfile?.id === profile?.id;
-
+  const isActiveProfile = connected && clientProfile?.id === profile?.id;
 
   const SectionHeader = ({ title }: { title: string }) => (
     <Typography
@@ -72,10 +71,10 @@ export default function ProfileForm({
 
   useEffect(() => {
     if (profile) {
-    setForm(profile);
-    setTestResult(null);   // ✅ reset test result
-    setTesting(false);
-  }
+      setForm(profile);
+      setTestResult(null); // ✅ reset test result
+      setTesting(false);
+    }
   }, [profile]);
 
   const handleChange = <K extends keyof MqttConnectionProfile>(
@@ -142,141 +141,151 @@ export default function ProfileForm({
       <Stack spacing={2}>
         <SectionHeader title="Connection" />
 
-<LabeledInput
-  label="Name"
-  value={form.name}
-  onChange={(value: string) => handleChange('name', value)}
-/>
+        <LabeledInput
+          label="Name"
+          value={form.name}
+          onChange={(value: string) => handleChange('name', value)}
+          disabled={isActiveProfile}
+        />
 
-<Stack direction="row" spacing={2}>
-  <Box sx={{ flex: 2 }}>
-    <LabeledInput
-      label="Host"
-      value={form.host}
-      onChange={(value: string) => handleChange('host', value)}
-    />
-  </Box>
+        <Stack direction="row" spacing={2}>
+          <Box sx={{ flex: 2 }}>
+            <LabeledInput
+              label="Host"
+              value={form.host}
+              onChange={(value: string) => handleChange('host', value)}
+              disabled={isActiveProfile}
+            />
+          </Box>
 
-  <Box sx={{ flex: 1 }}>
-    <LabeledInput
-      label="Port"
-      type="number"
-      value={form.port}
-      onChange={(value: string) => handleChange('port', Number(value))}
-    />
-  </Box>
-</Stack>
+          <Box sx={{ flex: 1 }}>
+            <LabeledInput
+              label="Port"
+              type="number"
+              value={form.port}
+              onChange={(value: string) => handleChange('port', Number(value))}
+              disabled={isActiveProfile}
+            />
+          </Box>
+        </Stack>
 
-<LabeledSelect
-  label="Protocol"
-  value={form.protocol}
-  options={[
-    { label: 'mqtt', value: 'mqtt' },
-    { label: 'mqtts', value: 'mqtts' },
-    { label: 'ws', value: 'ws' },
-    { label: 'wss', value: 'wss' },
-  ]}
-  onChange={(value) => handleChange('protocol', value)}
-/>
+        <LabeledSelect
+          label="Protocol"
+          value={form.protocol}
+          options={[
+            { label: 'mqtt', value: 'mqtt' },
+            { label: 'mqtts', value: 'mqtts' },
+            { label: 'ws', value: 'ws' },
+            { label: 'wss', value: 'wss' },
+          ]}
+          onChange={(value) => handleChange('protocol', value)}
+disabled={isActiveProfile}
+        />
 
-<Stack direction="row" spacing={2} alignItems="center">
-  <Box sx={{ flex: 1 }}>
-    <LabeledSwitch
-      label="Clean Session"
-      checked={form.cleanSession}
-      onChange={(checked) => handleChange('cleanSession', checked)}
-    />
-  </Box>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Box sx={{ flex: 1 }}>
+            <LabeledSwitch
+              label="Clean Session"
+              checked={form.cleanSession}
+              onChange={(checked) => handleChange('cleanSession', checked)}
+              disabled={isActiveProfile}
+            />
+          </Box>
 
-  <Box sx={{ flex: 1 }}>
-    <LabeledInput
-      label="Keep Alive"
-      type="number"
-      value={form.keepAlive}
-      onChange={(value: string) =>
-        handleChange('keepAlive', Number(value))
-      }
-    />
-  </Box>
-</Stack>
-<SectionHeader title="Authentication" />
+          <Box sx={{ flex: 1 }}>
+            <LabeledInput
+              label="Keep Alive"
+              type="number"
+              value={form.keepAlive}
+              onChange={(value: string) =>
+                handleChange('keepAlive', Number(value))
+              }
+              disabled={isActiveProfile}
+            />
+          </Box>
+        </Stack>
+        <SectionHeader title="Authentication" />
 
-<Stack direction="row" spacing={2}>
-  <Box sx={{ flex: 1 }}>
-    <LabeledInput
-      label="Username"
-      value={form.username ?? ''}
-      onChange={(value: string) =>
-        handleChange('username', value || undefined)
-      }
-    />
-  </Box>
+        <Stack direction="row" spacing={2}>
+          <Box sx={{ flex: 1 }}>
+            <LabeledInput
+              label="Username"
+              value={form.username ?? ''}
+              onChange={(value: string) =>
+                handleChange('username', value || undefined)
+              }
+              disabled={isActiveProfile}
+            />
+          </Box>
 
-  <Box sx={{ flex: 1 }}>
-    <LabeledInput
-      label="Password"
-      type="password"
-      value={form.password ?? ''}
-      onChange={(value: string) =>
-        handleChange('password', value || undefined)
-      }
-    />
-  </Box>
-</Stack>
-{['mqtts', 'wss'].includes(form.protocol) && (
-  <>
-    <SectionHeader title="TLS / Certificates" />
+          <Box sx={{ flex: 1 }}>
+            <LabeledInput
+              label="Password"
+              type="password"
+              value={form.password ?? ''}
+              onChange={(value: string) =>
+                handleChange('password', value || undefined)
+              }
+              disabled={isActiveProfile}
+            />
+          </Box>
+        </Stack>
+        {['mqtts', 'wss'].includes(form.protocol) && (
+          <>
+            <SectionHeader title="TLS / Certificates" />
 
-    <CertificateField
-      label="CA Certificate"
-      value={form.caPath}
-      onChange={(path) => handleChange('caPath', path)}
-    />
+            <CertificateField
+              label="CA Certificate"
+              value={form.caPath}
+              onChange={(path) => handleChange('caPath', path)}
+disabled={isActiveProfile}
+            />
 
-    <CertificateField
-      label="Client Certificate"
-      value={form.certPath}
-      onChange={(path) => handleChange('certPath', path)}
-    />
+            <CertificateField
+              label="Client Certificate"
+              value={form.certPath}
+              onChange={(path) => handleChange('certPath', path)}
+              disabled={isActiveProfile}
+            />
 
-    <CertificateField
-      label="Client Key"
-      value={form.keyPath}
-      onChange={(path) => handleChange('keyPath', path)}
-    />
-  </>
-)}
+            <CertificateField
+              label="Client Key"
+              value={form.keyPath}
+              onChange={(path) => handleChange('keyPath', path)}
+              disabled={isActiveProfile}
+            />
+          </>
+        )}
 
-<SectionHeader title="Actions" />
+        <SectionHeader title="Actions" />
 
-<Box sx={{ display: 'flex', gap: 1 }}>
-  <Button onClick={handleSave}>Save</Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button onClick={handleSave} disabled={isActiveProfile}>Save</Button>
 
-  {onCancel && (
-    <Button variant="outlined" onClick={onCancel}>
-      Cancel
-    </Button>
-  )}
+          {onCancel && (
+            <Button variant="outlined" onClick={onCancel} disabled={isActiveProfile}>
+              Cancel
+            </Button>
+          )}
 
-<Button
+          <Button
             variant="outlined"
             color={connected ? 'danger' : 'primary'}
             onClick={connected ? handleDisconnect : handleConnect}
           >
             {connected ? 'Disconnect' : 'Connect'}
           </Button>
-</Box>
+        </Box>
 
-<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
           <Button
             variant="outlined"
             loading={testing}
             onClick={handleTestConnection}
+            disabled={isActiveProfile}
           >
             Test Connection
           </Button>
-
-
 
           {testResult && (
             <Typography
@@ -285,10 +294,8 @@ export default function ProfileForm({
             >
               {testResult.message}
             </Typography>
-             )}
-</Box>
-
-
+          )}
+        </Box>
       </Stack>
     </Box>
   );

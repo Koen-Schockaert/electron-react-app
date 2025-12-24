@@ -10,6 +10,7 @@ interface LabeledSelectProps<T extends string> {
   value: T;
   options: LabeledSelectOption<T>[];
   onChange: (value: T) => void;
+  disabled?: boolean;
 }
 
 export function LabeledSelect<T extends string>({
@@ -17,6 +18,7 @@ export function LabeledSelect<T extends string>({
   value,
   options,
   onChange,
+  disabled
 }: LabeledSelectProps<T>) {
   return (
     <FormControl>
@@ -28,6 +30,7 @@ export function LabeledSelect<T extends string>({
             onChange(newValue);
           }
         }}
+        disabled={disabled}
       >
         {options.map((opt) => (
           <Option key={opt.value} value={opt.value}>
