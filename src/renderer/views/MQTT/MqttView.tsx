@@ -12,7 +12,7 @@ import { useMqtt } from '../../context/MqttContext';
 import { Chip } from '@mui/joy';
 
 const MqttView: React.FC = () => {
-  const { messages, subscribedTopics, addMessage, addSubscribedTopic } =
+  const { messages, subscribedTopics, clearMessages, addSubscribedTopic } =
     useMqtt();
 
   const [subscribeTopic, setSubscribeTopic] = useState('');
@@ -20,7 +20,6 @@ const MqttView: React.FC = () => {
   const [publishMessage, setPublishMessage] = useState('');
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const { connected, clientProfile } = useMqtt();
-
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,6 +47,21 @@ const MqttView: React.FC = () => {
     }
   };
 
+  function formatPayload(payload: string) {
+    try {
+      const parsed = JSON.parse(payload);
+      return {
+        isJson: true,
+        formatted: JSON.stringify(parsed, null, 2),
+      };
+    } catch {
+      return {
+        isJson: false,
+        formatted: payload,
+      };
+    }
+  }
+
   if (!connected) {
     return (
       <Box sx={{ p: 3 }}>
@@ -61,10 +75,12 @@ const MqttView: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Chip color={connected ? 'success' : 'danger'} variant="soft">
-        {connected ? `Connected to "${clientProfile?.name ?? 'Unknown profile'}"` : 'MQTT Disconnected'}
+        {connected
+          ? `Connected to "${clientProfile?.name ?? 'Unknown profile'}"`
+          : 'MQTT Disconnected'}
       </Chip>
       <Typography variant="h5" gutterBottom>
-        MQTT Live Messages {connected ? '(Connected)' : '(Disconnected)'}
+        MQTT Live Messages 
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
@@ -131,6 +147,14 @@ const MqttView: React.FC = () => {
       <Typography variant="h6" gutterBottom>
         Messages
       </Typography>
+      <Button
+        variant="outlined"
+        color="warning"
+        onClick={clearMessages}
+        disabled={!messages.length}
+      >
+        Clear
+      </Button>
       <Box
         sx={{
           maxHeight: 400,
@@ -140,11 +164,39 @@ const MqttView: React.FC = () => {
         }}
       >
         <List>
-          {messages.map((m, index) => (
-            <ListItem key={index} divider component="div">
-              <ListItemText primary={`${m.topic}: ${m.message}`} />
-            </ListItem>
-          ))}
+          {messages.map((m, index) => {
+            const payload = formatPayload(m.message);
+
+            return (
+              <ListItem key={index} divider alignItems="flex-start">
+                <Box sx={{ width: '100%' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    {m.topic}
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      mt: 0.5,
+                      p: 1,
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      whiteSpace: 'pre-wrap',
+                      bgcolor: payload.isJson
+                        ? 'neutral.softBg'
+                        : 'background.level1',
+                      borderRadius: 1,
+                    }}
+                  >
+                    {payload.formatted}
+                  </Box>
+                </Box>
+              </ListItem>
+            );
+          })}
+
           <div ref={messagesEndRef} />
         </List>
       </Box>
