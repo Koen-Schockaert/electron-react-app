@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import {
   Button,
   TextField,
@@ -12,8 +14,14 @@ import { useMqtt } from '../../context/MqttContext';
 import { Chip } from '@mui/joy';
 
 const MqttView: React.FC = () => {
-  const { messages, subscribedTopics, clearMessages, addSubscribedTopic } =
-    useMqtt();
+  const {
+    messages,
+    subscribedTopics,
+    clearMessages,
+    addSubscribedTopic,
+    copyToEditor,
+  } = useMqtt();
+  const navigate = useNavigate();
 
   const [subscribeTopic, setSubscribeTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
@@ -80,7 +88,7 @@ const MqttView: React.FC = () => {
           : 'MQTT Disconnected'}
       </Chip>
       <Typography variant="h5" gutterBottom>
-        MQTT Live Messages 
+        MQTT Live Messages
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
@@ -168,31 +176,52 @@ const MqttView: React.FC = () => {
             const payload = formatPayload(m.message);
 
             return (
-              <ListItem key={index} divider alignItems="flex-start">
-                <Box sx={{ width: '100%' }}>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'text.secondary' }}
-                  >
+              <ListItem
+                key={m.topic + index}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column', // stack topic row and message
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  borderBottom: '1px solid #eee',
+                  px: 1,
+                  py: 0.5,
+                }}
+              >
+                {/* Topic row with button */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                     {m.topic}
                   </Typography>
-
-                  <Box
-                    sx={{
-                      mt: 0.5,
-                      p: 1,
-                      fontFamily: 'monospace',
-                      fontSize: '0.85rem',
-                      whiteSpace: 'pre-wrap',
-                      bgcolor: payload.isJson
-                        ? 'neutral.softBg'
-                        : 'background.level1',
-                      borderRadius: 1,
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      copyToEditor({
+                        topic: m.topic,
+                        message: m.message,
+                      });
+                      navigate('/json-editor');
                     }}
                   >
-                    {payload.formatted}
-                  </Box>
+                    Edit JSON
+                  </Button>
                 </Box>
+
+                {/* Message below the topic */}
+                <Typography
+                  variant="body2"
+                  sx={{ color: 'text.secondary', mt: 0.5 }}
+                >
+                  {m.message}
+                </Typography>
               </ListItem>
             );
           })}
