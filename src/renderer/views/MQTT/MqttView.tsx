@@ -1,74 +1,103 @@
-import React, { useState } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  UIEvent,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
+  Box,
   Button,
   TextField,
+  Typography,
   List,
   ListItem,
-  ListItemText,
-  Box,
-  Typography,
 } from '@mui/material';
+import { Chip, Switch } from '@mui/joy';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+
 import { useMqtt } from '../../context/MqttContext';
-import { Chip } from '@mui/joy';
+
+const SCROLL_THRESHOLD_PX = 40;
 
 const MqttView: React.FC = () => {
+  const navigate = useNavigate();
+
   const {
+    connected,
+    clientProfile,
     messages,
+    topicsWithMessages,
     subscribedTopics,
     clearMessages,
     addSubscribedTopic,
     copyToEditor,
   } = useMqtt();
-  const navigate = useNavigate();
 
   const [subscribeTopic, setSubscribeTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
   const [publishMessage, setPublishMessage] = useState('');
-  const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
-  const { connected, clientProfile } = useMqtt();
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Filter messages by topic (derived, cheap)
+   */
+  const filteredMessages = useMemo(() => {
+    if (!selectedTopic) return messages;
+    return messages.filter((m) => m.topic === selectedTopic);
+  }, [messages, selectedTopic]);
+
+  /**
+   * Auto-scroll only when enabled
+   */
+  useEffect(() => {
+    if (!autoScroll) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [filteredMessages, autoScroll]);
+
+  /**
+   * Detect manual scroll to disable auto-scroll
+   */
+  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight <
+      SCROLL_THRESHOLD_PX;
+
+    setShowScrollToBottom(!atBottom);
+    setAutoScroll(atBottom);
+  };
+
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setAutoScroll(true);
+    setShowScrollToBottom(false);
+  };
 
   const handleSubscribe = async () => {
-    if (!subscribeTopic.trim())
-      return alert('Please enter a topic to subscribe.');
-    try {
-      await window.mqttAPI.subscribe(subscribeTopic);
-      addSubscribedTopic(subscribeTopic);
-      setSubscribeTopic('');
-    } catch (err: any) {
-      alert('Subscribe failed: ' + err);
-    }
+    if (!subscribeTopic.trim()) return;
+
+    await window.mqttAPI.subscribe(subscribeTopic);
+    addSubscribedTopic(subscribeTopic);
+    setSubscribeTopic('');
   };
 
   const handlePublish = async () => {
-    if (!publishTopic.trim()) return alert('Please enter a topic to publish.');
-    try {
-      await window.mqttAPI.publish(publishTopic, publishMessage);
-      setPublishMessage('');
-    } catch (err: any) {
-      alert('Publish failed: ' + err);
-    }
-  };
+    if (!publishTopic.trim()) return;
 
-  function formatPayload(payload: string) {
-    try {
-      const parsed = JSON.parse(payload);
-      return {
-        isJson: true,
-        formatted: JSON.stringify(parsed, null, 2),
-      };
-    } catch {
-      return {
-        isJson: false,
-        formatted: payload,
-      };
-    }
-  }
+    await window.mqttAPI.publish(publishTopic, publishMessage);
+    setPublishMessage('');
+  };
 
   if (!connected) {
     return (
@@ -81,153 +110,225 @@ const MqttView: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Chip color={connected ? 'success' : 'danger'} variant="soft">
-        {connected
-          ? `Connected to "${clientProfile?.name ?? 'Unknown profile'}"`
-          : 'MQTT Disconnected'}
-      </Chip>
-      <Typography variant="h5" gutterBottom>
-        MQTT Live Messages
-      </Typography>
+    <Box
+      sx={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        backgroundColor: 'background.default',
+      }}
+    >
+      {/* ================= HEADER + CONTROLS ================= */}
+      <Box sx={{ p: 2, borderBottom: '1px solid #ddd', flexShrink: 0 }}>
+        <Chip color="success" variant="soft" sx={{ mb: 1 }}>
+          Connected to "{clientProfile?.name ?? 'Unknown profile'}"
+        </Chip>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <TextField
-          label="Subscribe Topic"
-          value={subscribeTopic}
-          onChange={(e) => setSubscribeTopic(e.target.value)}
-          fullWidth
-        />
-        <Button variant="contained" onClick={handleSubscribe}>
-          Subscribe
-        </Button>
-      </Box>
+        <Typography variant="h5" gutterBottom>
+          MQTT Live Messages
+        </Typography>
 
-      {subscribedTopics.length > 0 && (
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body1">Subscribed Topics:</Typography>
-          <List
-            sx={{
-              display: 'flex',
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: 1,
-            }}
-          >
-            {subscribedTopics.map((t) => (
-              <ListItem
-                key={t}
-                component="div"
-                onClick={() => setPublishTopic(t)}
-                sx={{
-                  width: 'auto',
-                  border: '1px solid #ccc',
-                  borderRadius: 1,
-                  px: 1,
-                  cursor: 'pointer',
-                }}
-              >
-                <ListItemText primary={t} />
-              </ListItem>
-            ))}
-          </List>
+        {/* Subscribe */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField
+            size="small"
+            label="Subscribe Topic"
+            value={subscribeTopic}
+            onChange={(e) => setSubscribeTopic(e.target.value)}
+            fullWidth
+          />
+          <Button variant="contained" onClick={handleSubscribe}>
+            Subscribe
+          </Button>
         </Box>
-      )}
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <TextField
-          label="Publish Topic"
-          value={publishTopic}
-          onChange={(e) => setPublishTopic(e.target.value)}
-          fullWidth
-        />
-        <TextField
-          label="Message"
-          value={publishMessage}
-          onChange={(e) => setPublishMessage(e.target.value)}
-          fullWidth
-        />
-        <Button variant="contained" onClick={handlePublish}>
-          Publish
-        </Button>
+        {/* Publish */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField
+            size="small"
+            label="Publish Topic"
+            value={publishTopic}
+            onChange={(e) => setPublishTopic(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Message"
+            value={publishMessage}
+            onChange={(e) => setPublishMessage(e.target.value)}
+            fullWidth
+          />
+          <Button variant="contained" onClick={handlePublish}>
+            Publish
+          </Button>
+        </Box>
+
+        {/* ================= SUBSCRIBED TOPICS ================= */}
+{subscribedTopics.length > 0 && (
+  <Box sx={{ mt: 1 }}>
+    <Typography
+      variant="body2"
+      sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5 }}
+    >
+      Subscribed Topics
+    </Typography>
+
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {subscribedTopics.map((topic) => (
+        <Chip
+          key={topic}
+          variant="outlined"
+          onClick={() => setPublishTopic(topic)}
+          sx={{ cursor: 'pointer' }}
+        >
+          {topic}
+        </Chip>
+      ))}
+    </Box>
+  </Box>
+)}
+
+
+        {/* Topic Filter */}
+        <Typography
+      variant="body2"
+      sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5 }}
+    >
+      Topics Filter
+    </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+
+          <Chip
+            variant={selectedTopic === null ? 'solid' : 'soft'}
+            onClick={() => setSelectedTopic(null)}
+          >
+            All ({messages.length})
+          </Chip>
+
+          {topicsWithMessages.map(({ topic, count }) => (
+            <Chip
+              key={topic}
+              variant={selectedTopic === topic ? 'solid' : 'soft'}
+              onClick={() => setSelectedTopic(topic)}
+            >
+              {topic} ({count})
+            </Chip>
+          ))}
+        </Box>
       </Box>
 
-      <Typography variant="h6" gutterBottom>
-        Messages
-      </Typography>
-      <Button
-        variant="outlined"
-        color="warning"
-        onClick={clearMessages}
-        disabled={!messages.length}
-      >
-        Clear
-      </Button>
+      {/* ================= MESSAGES ================= */}
       <Box
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
         sx={{
-          maxHeight: 400,
+          flexGrow: 1,
           overflowY: 'auto',
-          border: '1px solid #ccc',
-          borderRadius: 1,
+          position: 'relative',
+          fontFamily: 'monospace',
         }}
       >
-        <List>
-          {messages.map((m, index) => {
-            const payload = formatPayload(m.message);
+        {/* Sticky messages header */}
+        <Box
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            backgroundColor: 'background.paper',
+            borderBottom: '1px solid #ddd',
+            px: 2,
+            py: 1,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Typography variant="body1">
+            Messages ({filteredMessages.length})
+            {selectedTopic && ` — ${selectedTopic}`}
+          </Typography>
 
-            return (
-              <ListItem
-                key={m.topic + index}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Switch
+              checked={autoScroll}
+              onChange={() => setAutoScroll((v) => !v)}
+              startDecorator={autoScroll ? <PlayArrowIcon /> : <PauseIcon />}
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              onClick={() => {
+                clearMessages();
+                setSelectedTopic(null);
+              }}
+              disabled={!messages.length}
+            >
+              Clear
+            </Button>
+          </Box>
+        </Box>
+
+        <List disablePadding>
+          {filteredMessages.map((m, index) => (
+            <ListItem
+              key={`${m.topic}-${index}`}
+              sx={{
+                borderBottom: '1px solid #eee',
+                px: 2,
+                py: 0.5,
+                display: 'block',
+              }}
+            >
+              <Box
                 sx={{
                   display: 'flex',
-                  flexDirection: 'column', // stack topic row and message
-                  alignItems: 'flex-start',
-                  width: '100%',
-                  borderBottom: '1px solid #eee',
-                  px: 1,
-                  py: 0.5,
+                  justifyContent: 'space-between',
+                  mb: 0.5,
                 }}
               >
-                {/* Topic row with button */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    width: '100%',
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  {m.topic}
+                </Typography>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => {
+                    copyToEditor({ topic: m.topic, message: m.message });
+                    navigate('/json-editor');
                   }}
                 >
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    {m.topic}
-                  </Typography>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      copyToEditor({
-                        topic: m.topic,
-                        message: m.message,
-                      });
-                      navigate('/json-editor');
-                    }}
-                  >
-                    Edit JSON
-                  </Button>
-                </Box>
+                  Edit JSON
+                </Button>
+              </Box>
 
-                {/* Message below the topic */}
-                <Typography
-                  variant="body2"
-                  sx={{ color: 'text.secondary', mt: 0.5 }}
-                >
-                  {m.message}
-                </Typography>
-              </ListItem>
-            );
-          })}
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                {m.message}
+              </Typography>
+            </ListItem>
+          ))}
 
           <div ref={messagesEndRef} />
         </List>
+
+        {/* Scroll to bottom button */}
+        {showScrollToBottom && (
+          <Button
+            variant="contained"
+            size="small"
+            onClick={scrollToBottom}
+            sx={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              zIndex: 10,
+            }}
+            startIcon={<ArrowDownwardIcon />}
+          >
+            New messages
+          </Button>
+        )}
       </Box>
     </Box>
   );
