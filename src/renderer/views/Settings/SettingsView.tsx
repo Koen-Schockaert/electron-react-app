@@ -3,6 +3,7 @@ import { useState } from 'react';
 import SettingsTopBar from './SettingsTopBar';
 import MqttSettings from './subviews/MqttSettings';
 import OtherSettings from './subviews/OtherSettings';
+import PageLayout from '../../layout/PageLaout';
 
 type SettingsTab = 'mqtt' | 'other';
 
@@ -21,9 +22,23 @@ export default function SettingsView() {
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'grid', gridTemplateRows: 'auto 1fr' }}>
-      <SettingsTopBar activeTab={activeTab} onChangeTab={setActiveTab} />
-      <Box sx={{ p: 2, overflowY: 'auto' }}>{renderContent()}</Box>
-    </Box>
+    <PageLayout title="Settings">
+      {/* Top bar */}
+      <SettingsTopBar
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
+      />
+
+      {/* Content area */}
+      <Box
+        sx={{
+          flex: 1,
+          overflow: 'auto',
+          p: 2,
+        }}
+      >
+        {renderContent()}
+      </Box>
+    </PageLayout>
   );
 }

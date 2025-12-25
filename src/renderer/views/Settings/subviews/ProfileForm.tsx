@@ -1,16 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Box,
-  Button,
-  Input,
-  Select,
-  Option,
-  Switch,
-  Stack,
-  FormControl,
-  FormLabel,
-  Typography,
-} from '@mui/joy';
+import { Box, Button, Stack, Typography } from '@mui/joy';
 import type { MqttConnectionProfile, MqttTestResult } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { LabeledInput } from '../../../components/form/LabeledInput';
@@ -23,11 +12,8 @@ interface ProfileFormProps {
   profile: MqttConnectionProfile | null;
   onSave: (profile: MqttConnectionProfile, password?: string) => void;
   onCancel?: () => void;
-  onDisconnect?: () => void;
   connected?: boolean;
 }
-
-const protocols = ['mqtt', 'mqtts', 'ws', 'wss'] as const;
 
 export default function ProfileForm({
   profile,
@@ -48,10 +34,8 @@ export default function ProfileForm({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<MqttTestResult | null>(null);
   const [password, setPassword] = useState('');
-  //const [connected, setConnected] = useState(false);
   const { connected, setConnected, setClientProfile, clientProfile } =
     useMqtt();
-  const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const isActiveProfile = connected && clientProfile?.id === profile?.id;
 
   const SectionHeader = ({ title }: { title: string }) => (
@@ -60,7 +44,7 @@ export default function ProfileForm({
       sx={{
         mt: 2,
         mb: 1,
-        color: 'text.secondary',
+        color: 'gray',
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
       }}
@@ -72,7 +56,7 @@ export default function ProfileForm({
   useEffect(() => {
     if (profile) {
       setForm(profile);
-      setTestResult(null); // ✅ reset test result
+      setTestResult(null);
       setTesting(false);
     }
   }, [profile]);
@@ -89,7 +73,6 @@ export default function ProfileForm({
       alert('Profile name is required');
       return;
     }
-
     onSave(form, password || undefined);
     setPassword('');
   };
@@ -97,7 +80,6 @@ export default function ProfileForm({
   const handleTestConnection = async () => {
     setTesting(true);
     setTestResult(null);
-
     try {
       const result = await window.settingsAPI.testMqttConnection(form);
       setTestResult(result);
@@ -113,7 +95,6 @@ export default function ProfileForm({
         url: `${form.protocol}://${form.host}:${form.port}`,
         username: form.username,
         password: form.password,
-        // remove unknown props: clean, keepAlive, caPath, certPath, keyPath
       });
       setConnected(true);
       setClientProfile(profile);
@@ -137,8 +118,17 @@ export default function ProfileForm({
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Stack spacing={2}>
+    <Box
+      sx={{
+        p: 2,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: '#0f172a',
+        color: '#e5e7eb',
+      }}
+    >
+      <Stack spacing={2} sx={{ flex: 1, overflowY: 'auto' }}>
         <SectionHeader title="Connection" />
 
         <LabeledInput
@@ -146,6 +136,7 @@ export default function ProfileForm({
           value={form.name}
           onChange={(value: string) => handleChange('name', value)}
           disabled={isActiveProfile}
+          sx={{ input: { bgcolor: '#020617', color: '#e5e7eb' } }}
         />
 
         <Stack direction="row" spacing={2}>
@@ -155,6 +146,7 @@ export default function ProfileForm({
               value={form.host}
               onChange={(value: string) => handleChange('host', value)}
               disabled={isActiveProfile}
+              sx={{ input: { bgcolor: '#020617', color: '#e5e7eb' } }}
             />
           </Box>
 
@@ -165,6 +157,7 @@ export default function ProfileForm({
               value={form.port}
               onChange={(value: string) => handleChange('port', Number(value))}
               disabled={isActiveProfile}
+              sx={{ input: { bgcolor: '#020617', color: '#e5e7eb' } }}
             />
           </Box>
         </Stack>
@@ -179,7 +172,8 @@ export default function ProfileForm({
             { label: 'wss', value: 'wss' },
           ]}
           onChange={(value) => handleChange('protocol', value)}
-disabled={isActiveProfile}
+          disabled={isActiveProfile}
+          sx={{ select: { bgcolor: '#020617', color: '#e5e7eb' } }}
         />
 
         <Stack direction="row" spacing={2} alignItems="center">
@@ -201,9 +195,11 @@ disabled={isActiveProfile}
                 handleChange('keepAlive', Number(value))
               }
               disabled={isActiveProfile}
+              sx={{ input: { bgcolor: '#020617', color: '#e5e7eb' } }}
             />
           </Box>
         </Stack>
+
         <SectionHeader title="Authentication" />
 
         <Stack direction="row" spacing={2}>
@@ -215,6 +211,7 @@ disabled={isActiveProfile}
                 handleChange('username', value || undefined)
               }
               disabled={isActiveProfile}
+              sx={{ input: { bgcolor: '#020617', color: '#e5e7eb' } }}
             />
           </Box>
 
@@ -227,9 +224,11 @@ disabled={isActiveProfile}
                 handleChange('password', value || undefined)
               }
               disabled={isActiveProfile}
+              sx={{ input: { bgcolor: '#020617', color: '#e5e7eb' } }}
             />
           </Box>
         </Stack>
+
         {['mqtts', 'wss'].includes(form.protocol) && (
           <>
             <SectionHeader title="TLS / Certificates" />
@@ -238,7 +237,8 @@ disabled={isActiveProfile}
               label="CA Certificate"
               value={form.caPath}
               onChange={(path) => handleChange('caPath', path)}
-disabled={isActiveProfile}
+              disabled={isActiveProfile}
+              sx={{ mb: 2 }}
             />
 
             <CertificateField
@@ -246,6 +246,7 @@ disabled={isActiveProfile}
               value={form.certPath}
               onChange={(path) => handleChange('certPath', path)}
               disabled={isActiveProfile}
+              sx={{ mb: 2 }}
             />
 
             <CertificateField
@@ -253,17 +254,24 @@ disabled={isActiveProfile}
               value={form.keyPath}
               onChange={(path) => handleChange('keyPath', path)}
               disabled={isActiveProfile}
+              sx={{ mb: 2 }}
             />
           </>
         )}
 
         <SectionHeader title="Actions" />
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button onClick={handleSave} disabled={isActiveProfile}>Save</Button>
+        <Stack direction="row" spacing={1}>
+          <Button onClick={handleSave} disabled={isActiveProfile}>
+            Save
+          </Button>
 
           {onCancel && (
-            <Button variant="outlined" onClick={onCancel} disabled={isActiveProfile}>
+            <Button
+              variant="outlined"
+              onClick={onCancel}
+              disabled={isActiveProfile}
+            >
               Cancel
             </Button>
           )}
@@ -275,27 +283,26 @@ disabled={isActiveProfile}
           >
             {connected ? 'Disconnect' : 'Connect'}
           </Button>
-        </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
           <Button
             variant="outlined"
             loading={testing}
             onClick={handleTestConnection}
             disabled={isActiveProfile}
           >
-            Test Connection
+            Test
           </Button>
+        </Stack>
 
-          {testResult && (
-            <Typography
-              level="body-sm"
-              color={testResult.success ? 'success' : 'danger'}
-            >
-              {testResult.message}
-            </Typography>
-          )}
-        </Box>
+        {testResult && (
+          <Typography
+            level="body-sm"
+            color={testResult.success ? 'success' : 'danger'}
+            sx={{ mt: 1 }}
+          >
+            {testResult.message}
+          </Typography>
+        )}
       </Stack>
     </Box>
   );

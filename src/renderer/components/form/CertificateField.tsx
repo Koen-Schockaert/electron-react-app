@@ -1,4 +1,4 @@
-import { Box, Button, Input, FormControl, FormLabel } from '@mui/joy';
+import { Box, Button, FormControl, FormLabel, Input } from "@mui/joy";
 
 interface CertificateFieldProps {
   label: string;
@@ -6,6 +6,7 @@ interface CertificateFieldProps {
   onChange: (path: string | undefined) => void;
   filters?: { name: string; extensions: string[] }[];
   disabled?: boolean;
+  sx?: object; // <-- add this
 }
 
 export function CertificateField({
@@ -13,7 +14,8 @@ export function CertificateField({
   value,
   onChange,
   filters = [{ name: 'Certificates', extensions: ['pem', 'crt', 'key'] }],
-  disabled
+  disabled = false,
+  sx,
 }: CertificateFieldProps) {
   const browse = async () => {
     const path = await window.fileAPI.openFile({
@@ -24,11 +26,31 @@ export function CertificateField({
   };
 
   return (
-    <FormControl>
-      <FormLabel>{label}</FormLabel>
+    <FormControl sx={sx}>
+      <FormLabel sx={{ color: '#e5e7eb' }}>{label}</FormLabel>
       <Box sx={{ display: 'flex', gap: 1 }}>
-        <Input value={value ?? ''} readOnly disabled={disabled}/>
-        <Button variant="outlined" onClick={browse} disabled={disabled}>
+        <Input
+          value={value ?? ''}
+          readOnly
+          disabled={disabled}
+          sx={{
+            flex: 1,
+            bgcolor: '#0f172a',
+            color: '#e5e7eb',
+            border: '1px solid #1e293b',
+          }}
+        />
+        <Button
+          variant="outlined"
+          onClick={browse}
+          disabled={disabled}
+          sx={{
+            bgcolor: '#0f172a',
+            color: '#e5e7eb',
+            borderColor: '#1e293b',
+            '&:hover': { bgcolor: '#1e293b' },
+          }}
+        >
           Browse
         </Button>
       </Box>

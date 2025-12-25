@@ -15,10 +15,15 @@ export const DarkTextField: React.FC<DarkTextFieldProps> = ({
   placeholder,
   disabled = false,
 }) => (
-  <Box display="flex" flexDirection="column" mb={1}>
-    <Typography fontSize={12} sx={{ color: '#9ca3af' }} mb={0.5}>
-  {label}
-</Typography>
+  <Box display="flex" flexDirection="column" mb={2}>
+    <Typography
+      fontSize={12}
+      fontWeight={500}
+      sx={{ color: '#9ca3af' }}
+      mb={0.5}
+    >
+      {label}
+    </Typography>
 
     <Input
       value={value}
@@ -31,6 +36,8 @@ export const DarkTextField: React.FC<DarkTextFieldProps> = ({
         color: '#e5e7eb',
         border: '1px solid #1e293b',
         borderRadius: 1,
+        px: 1, // padding horizontal
+        py: 0.5, // padding vertical
         '& input': {
           color: '#e5e7eb',
         },

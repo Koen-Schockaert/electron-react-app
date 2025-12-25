@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Button } from '@mui/joy';
+import { Box } from '@mui/joy';
 import type { MqttConnectionProfile } from './types';
 import ProfileList from './ProfileList';
 import ProfileForm from './ProfileForm';
@@ -7,20 +7,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { useMqtt } from '../../../context/MqttContext';
 
 export default function MqttSettings() {
-  const [profiles, setProfiles] = useState<
-    Record<string, MqttConnectionProfile>
-  >({});
+  const [profiles, setProfiles] = useState<Record<string, MqttConnectionProfile>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [creatingNew, setCreatingNew] = useState(false);
-  const [draftProfile, setDraftProfile] =
-    useState<MqttConnectionProfile | null>(null);
+  const [draftProfile, setDraftProfile] = useState<MqttConnectionProfile | null>(null);
   const { connected, clientProfile } = useMqtt();
 
   const loadProfiles = async () => {
     const loaded = await window.settingsAPI.getMqttProfiles();
     setProfiles(loaded);
-    if (!activeId && Object.keys(loaded).length)
-      setActiveId(Object.keys(loaded)[0]);
+    if (!activeId && Object.keys(loaded).length) setActiveId(Object.keys(loaded)[0]);
   };
 
   useEffect(() => {
@@ -59,21 +54,37 @@ export default function MqttSettings() {
   const profileToEdit = draftProfile ?? activeProfile;
 
   return (
-    <Box sx={{ display: 'flex', height: '100%' }}>
-      <ProfileList
-        profiles={profiles}
-        activeId={activeId}
-        connected={connected}
-        connectedProfileId={clientProfile?.id ?? null}
-        onSelect={(id) => {
-          setDraftProfile(null);
-          setActiveId(id);
-        }}
-        onDelete={handleDelete}
-        onCreate={handleCreate}
-      />
+    <Box display="flex" height="100%" bgcolor="#0f172a" color="#e5e7eb">
+      {/* Left sidebar: profile list */}
+      <Box
+        width={300}
+        borderRight="1px solid #1e293b"
+        bgcolor="#020617"
+        display="flex"
+        flexDirection="column"
+        overflow="auto"
+      >
+        <ProfileList
+          profiles={profiles}
+          activeId={activeId}
+          connected={connected}
+          connectedProfileId={clientProfile?.id ?? null}
+          onSelect={(id) => {
+            setDraftProfile(null);
+            setActiveId(id);
+          }}
+          onDelete={handleDelete}
+          onCreate={handleCreate}
+        />
+      </Box>
 
-      <Box sx={{ flex: 1 }}>
+      {/* Right pane: form */}
+      <Box
+        flex={1}
+        display="flex"
+        flexDirection="column"
+        overflow="auto"
+      >
         {profileToEdit ? (
           <ProfileForm
             profile={profileToEdit}
@@ -81,7 +92,7 @@ export default function MqttSettings() {
             onCancel={() => setDraftProfile(null)}
           />
         ) : (
-          <Box sx={{ p: 2, color: 'text.secondary' }}>
+          <Box p={2} color="text.secondary">
             Select or create a profile
           </Box>
         )}
