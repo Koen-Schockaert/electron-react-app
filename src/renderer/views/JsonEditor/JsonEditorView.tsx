@@ -1,10 +1,12 @@
-import { Box, Button, Typography, Alert } from '@mui/joy';
-import { useEffect, useState } from 'react';
-import { useMqtt } from '../../context/MqttContext';
+// src/renderer/views/JsonEditorView.tsx
+import React, { useEffect, useState } from 'react';
+import { Box, Button, Typography, IconButton, Alert, Tooltip } from '@mui/joy';
+import { ContentPasteGo, FormatColorFill } from '@mui/icons-material';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { EditorView } from '@codemirror/view';
-import { LabeledTextField } from '../../components/form/LabeledTextField';
+import { useMqtt } from '../../context/MqttContext';
+import { DarkTextField } from '../../components/form/LabeledTextField';
 
 export default function JsonEditorView() {
   const { editorMessage, connected } = useMqtt();
@@ -14,7 +16,7 @@ export default function JsonEditorView() {
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
 
-  // Load incoming message
+  // Load incoming message from context
   useEffect(() => {
     if (!editorMessage) return;
 
@@ -42,7 +44,7 @@ export default function JsonEditorView() {
     }
   };
 
-  // Format / pretty-print JSON
+  // Pretty-print JSON
   const formatJson = () => {
     try {
       const parsed = JSON.parse(message);
@@ -53,7 +55,7 @@ export default function JsonEditorView() {
     }
   };
 
-  // Publish payload
+  // Publish MQTT message
   const handlePublish = async () => {
     if (!connected) return setError('Not connected to MQTT broker');
     if (!topic.trim()) return setError('Topic is required');
@@ -70,19 +72,63 @@ export default function JsonEditorView() {
   };
 
   return (
-    <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Typography level="h4" mb={2}>
-        JSON Editor
-      </Typography>
+    <Box
+      display="flex"
+      flexDirection="column"
+      height="100%"
+      bgcolor="#0f172a"
+      color="#e5e7eb"
+      p={3}
+    >
+      <Box
+        px={2}
+        py={1}
+        mb={2}
+        bgcolor="#020617" // dark header background
+        borderBottom="1px solid #1e293b" // subtle border like MQTTView
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+      >
+        <Typography level="h4" sx={{ color: '#e5e7eb', fontWeight: 600 }}>
+          JSON Editor
+        </Typography>
+      </Box>
 
+      {/* Header */}
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={2}
+      >
+        {editorMessage && (
+          <Tooltip title="Copy topic & message">
+            <IconButton
+              variant="outlined"
+              color="primary"
+              onClick={() => {
+                navigator.clipboard.writeText(
+                  `Topic: ${editorMessage.topic}\nMessage: ${editorMessage.message}`,
+                );
+              }}
+            >
+              <ContentPasteGo />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+
+      {/* Error alert */}
       {error && (
-        <Alert color="danger" sx={{ mb: 2 }}>
+        <Alert color="danger" variant="soft" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
 
+      {/* Topic input */}
       <Box mb={2}>
-        <LabeledTextField
+        <DarkTextField
           label="Topic"
           value={topic}
           onChange={setTopic}
@@ -91,16 +137,24 @@ export default function JsonEditorView() {
         />
       </Box>
 
-      <Box sx={{ display: 'flex', mb: 2, gap: 1 }}>
-        <Button variant="outlined" onClick={formatJson} disabled={publishing || !message}>
+      {/* Controls */}
+      <Box display="flex" gap={1} mb={2}>
+        <Button
+          variant="outlined"
+          startDecorator={<FormatColorFill />}
+          onClick={formatJson}
+          disabled={publishing || !message.trim()}
+        >
           Format JSON
         </Button>
       </Box>
 
-      <Box sx={{ flex: 1, mb: 2, height: '100%' }}>
-        <Typography level="body-sm" sx={{ mb: 1 }}>
-          Message
-        </Typography>
+      {/* Code editor */}
+      <Box
+        flex={1}
+        mb={2}
+        sx={{ height: '100%', border: '1px solid #1e293b', borderRadius: 1 }}
+      >
         <CodeMirror
           value={message}
           extensions={[json(), EditorView.lineWrapping]}
@@ -108,15 +162,22 @@ export default function JsonEditorView() {
             setMessage(value);
             validateJson(value);
           }}
-          style={{ height: '100%' }}
+          style={{
+            height: '100%',
+            backgroundColor: '#0f172a',
+            color: '#e5e7eb',
+            fontFamily: 'monospace',
+            borderRadius: 4,
+          }}
         />
       </Box>
 
+      {/* Publish button */}
       <Button
         variant="solid"
-        loading={publishing}
         disabled={!connected || !!error || !message.trim() || !topic.trim()}
         onClick={handlePublish}
+        sx={{ alignSelf: 'flex-start' }}
       >
         Publish
       </Button>

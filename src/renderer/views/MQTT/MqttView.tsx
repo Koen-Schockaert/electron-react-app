@@ -1,334 +1,396 @@
-import React, {
-  useState,
-  useMemo,
-  useEffect,
-  useRef,
-  UIEvent,
-} from 'react';
+// src/renderer/views/MqttView.tsx
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
   Box,
   Button,
-  TextField,
-  Typography,
+  IconButton,
   List,
   ListItem,
+  ListItemButton,
+  Typography,
+  Tooltip,
 } from '@mui/material';
-import { Chip, Switch } from '@mui/joy';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import PauseIcon from '@mui/icons-material/Pause';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-
+import { Pause, PlayArrow, ArrowDownward, Clear } from '@mui/icons-material';
+import { Chip, Divider } from '@mui/joy';
 import { useMqtt } from '../../context/MqttContext';
+import type {
+  MqttMessage,
+  MqttSubscription,
+  TopicInfo,
+} from '../../types/global';
 
-const SCROLL_THRESHOLD_PX = 40;
+const SCROLL_THRESHOLD = 80;
 
 const MqttView: React.FC = () => {
-  const navigate = useNavigate();
-
   const {
     connected,
     clientProfile,
     messages,
     topicsWithMessages,
-    subscribedTopics,
+    subscriptions,
+    addSubscription,
+    removeSubscription,
     clearMessages,
-    addSubscribedTopic,
-    copyToEditor,
+    copyToEditor
   } = useMqtt();
 
-  const [subscribeTopic, setSubscribeTopic] = useState('');
+  const navigate = useNavigate();
+
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+
+  const [newTopic, setNewTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
   const [publishMessage, setPublishMessage] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
 
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  /* ================= DEBUG LOG ================= */
+  useEffect(() => {
+    console.log('Received messages:', messages);
+  }, [messages]);
 
-  /**
-   * Filter messages by topic (derived, cheap)
-   */
+  /* ================= FILTERED MESSAGES ================= */
   const filteredMessages = useMemo(() => {
     if (!selectedTopic) return messages;
     return messages.filter((m) => m.topic === selectedTopic);
   }, [messages, selectedTopic]);
 
-  /**
-   * Auto-scroll only when enabled
-   */
+  /* ================= AUTO SCROLL ================= */
   useEffect(() => {
-    if (!autoScroll) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [filteredMessages, autoScroll]);
+    if (paused) return;
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [filteredMessages, paused]);
 
-  /**
-   * Detect manual scroll to disable auto-scroll
-   */
-  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    const atBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight <
-      SCROLL_THRESHOLD_PX;
-
-    setShowScrollToBottom(!atBottom);
-    setAutoScroll(atBottom);
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setAutoScroll(true);
-    setShowScrollToBottom(false);
-  };
-
-  const handleSubscribe = async () => {
-    if (!subscribeTopic.trim()) return;
-
-    await window.mqttAPI.subscribe(subscribeTopic);
-    addSubscribedTopic(subscribeTopic);
-    setSubscribeTopic('');
-  };
-
-  const handlePublish = async () => {
-    if (!publishTopic.trim()) return;
-
-    await window.mqttAPI.publish(publishTopic, publishMessage);
-    setPublishMessage('');
+  const onScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD;
+    setShowScrollDown(!atBottom);
   };
 
   if (!connected) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography color="warning">
-          Not connected to an MQTT broker.
+      <Box p={3}>
+        <Typography color="warning.main">
+          Not connected to an MQTT broker
         </Typography>
       </Box>
     );
   }
 
+  /* ================= DISCOVERED TOPICS ================= */
+  const discoveredTopics = useMemo(() => {
+    return topicsWithMessages.filter(
+      (t) => !subscriptions.some((s) => s.topic === t.topic),
+    );
+  }, [topicsWithMessages, subscriptions]);
+
   return (
     <Box
-      sx={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        backgroundColor: 'background.default',
-      }}
+      display="flex"
+      flexDirection="column"
+      height="100%"
+      bgcolor="#0f172a"
+      color="#e5e7eb"
     >
-      {/* ================= HEADER + CONTROLS ================= */}
-      <Box sx={{ p: 2, borderBottom: '1px solid #ddd', flexShrink: 0 }}>
-        <Chip color="success" variant="soft" sx={{ mb: 1 }}>
-          Connected to "{clientProfile?.name ?? 'Unknown profile'}"
-        </Chip>
-
-        <Typography variant="h5" gutterBottom>
-          MQTT Live Messages
-        </Typography>
-
-        {/* Subscribe */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-          <TextField
-            size="small"
-            label="Subscribe Topic"
-            value={subscribeTopic}
-            onChange={(e) => setSubscribeTopic(e.target.value)}
-            fullWidth
-          />
-          <Button variant="contained" onClick={handleSubscribe}>
-            Subscribe
-          </Button>
+      {/* ===== HEADER ===== */}
+      <Box
+        position="sticky"
+        top={0}
+        zIndex={10}
+        px={2}
+        py={1}
+        bgcolor="#020617"
+        borderBottom="1px solid #1e293b"
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+      >
+        <Box>
+          <Typography fontWeight={600}>MQTT Messages</Typography>
+          <Typography variant="caption" color="gray">
+            Connected to {clientProfile?.name}
+          </Typography>
         </Box>
 
-        {/* Publish */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-          <TextField
-            size="small"
-            label="Publish Topic"
-            value={publishTopic}
-            onChange={(e) => setPublishTopic(e.target.value)}
-            fullWidth
-          />
-          <TextField
-            size="small"
-            label="Message"
-            value={publishMessage}
-            onChange={(e) => setPublishMessage(e.target.value)}
-            fullWidth
-          />
-          <Button variant="contained" onClick={handlePublish}>
-            Publish
-          </Button>
-        </Box>
-
-        {/* ================= SUBSCRIBED TOPICS ================= */}
-{subscribedTopics.length > 0 && (
-  <Box sx={{ mt: 1 }}>
-    <Typography
-      variant="body2"
-      sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5 }}
-    >
-      Subscribed Topics
-    </Typography>
-
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-      {subscribedTopics.map((topic) => (
-        <Chip
-          key={topic}
-          variant="outlined"
-          onClick={() => setPublishTopic(topic)}
-          sx={{ cursor: 'pointer' }}
-        >
-          {topic}
-        </Chip>
-      ))}
-    </Box>
-  </Box>
-)}
-
-
-        {/* Topic Filter */}
-        <Typography
-      variant="body2"
-      sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5 }}
-    >
-      Topics Filter
-    </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-
-          <Chip
-            variant={selectedTopic === null ? 'solid' : 'soft'}
-            onClick={() => setSelectedTopic(null)}
-          >
-            All ({messages.length})
+        <Box display="flex" gap={1} alignItems="center">
+          <Chip size="sm" color="primary" variant="soft">
+            {filteredMessages.length} msgs
           </Chip>
 
-          {topicsWithMessages.map(({ topic, count }) => (
-            <Chip
-              key={topic}
-              variant={selectedTopic === topic ? 'solid' : 'soft'}
-              onClick={() => setSelectedTopic(topic)}
+          <Tooltip title={paused ? 'Resume scrolling' : 'Pause scrolling'}>
+            <IconButton
+              onClick={() => setPaused((p) => !p)}
+              size="small"
+              sx={{ color: '#e5e7eb' }} // Bright light color
             >
-              {topic} ({count})
-            </Chip>
-          ))}
+              {paused ? <PlayArrow /> : <Pause />}
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Clear messages">
+            <IconButton
+              onClick={clearMessages}
+              size="small"
+              sx={{ color: '#e5e7eb' }} // Bright light color
+            >
+              <Clear />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
-      {/* ================= MESSAGES ================= */}
-      <Box
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        sx={{
-          flexGrow: 1,
-          overflowY: 'auto',
-          position: 'relative',
-          fontFamily: 'monospace',
-        }}
-      >
-        {/* Sticky messages header */}
+      {/* ===== BODY ===== */}
+      <Box display="flex" flex={1} overflow="hidden">
+        {/* ===== LEFT: SUBSCRIPTIONS & DISCOVERED TOPICS ===== */}
         <Box
-          sx={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 1,
-            backgroundColor: 'background.paper',
-            borderBottom: '1px solid #ddd',
-            px: 2,
-            py: 1,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
+          width={300}
+          borderRight="1px solid #1e293b"
+          overflow="auto"
+          bgcolor="#020617"
+          display="flex"
+          flexDirection="column"
         >
-          <Typography variant="body1">
-            Messages ({filteredMessages.length})
-            {selectedTopic && ` — ${selectedTopic}`}
+          {/* Subscriptions */}
+          <Typography px={2} py={1} fontSize={13} color="gray">
+            Subscriptions
           </Typography>
+          <Box flex={1} overflow="auto">
+            <List dense disablePadding>
+              {subscriptions.map((sub: MqttSubscription) => {
+                const info = topicsWithMessages.find(
+                  (t) => t.topic === sub.topic,
+                );
+                const active = !!info;
+                return (
+                  <ListItem key={sub.topic} disablePadding>
+                    <ListItemButton
+                      selected={selectedTopic === sub.topic}
+                      onClick={() =>
+                        setSelectedTopic(
+                          selectedTopic === sub.topic ? null : sub.topic,
+                        )
+                      }
+                    >
+                      <Box width="100%">
+                        <Typography fontSize={13}>{sub.topic}</Typography>
+                        <Box
+                          display="flex"
+                          justifyContent="space-between"
+                          mt={0.5}
+                          gap={1}
+                        >
+                          <Typography
+                            fontSize={11}
+                            color={active ? 'success.main' : 'gray'}
+                          >
+                            {active ? `${info!.count} msgs` : 'inactive'}
+                          </Typography>
+                          <Chip size="sm" variant="outlined">
+                            QoS {sub.qos}
+                          </Chip>
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeSubscription(sub.topic);
+                            }}
+                          >
+                            Unsub
+                          </Button>
+                        </Box>
+                      </Box>
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Switch
-              checked={autoScroll}
-              onChange={() => setAutoScroll((v) => !v)}
-              startDecorator={autoScroll ? <PlayArrowIcon /> : <PauseIcon />}
-            />
-            <Button
-              size="small"
-              variant="outlined"
-              color="warning"
-              onClick={() => {
-                clearMessages();
-                setSelectedTopic(null);
-              }}
-              disabled={!messages.length}
-            >
-              Clear
-            </Button>
+          {/* Discovered topics */}
+          {discoveredTopics.length > 0 && (
+            <>
+              <Divider sx={{ borderColor: '#1e293b' }} />
+              <Typography px={2} py={1} fontSize={13} color="gray">
+                Discovered Topics
+              </Typography>
+              <Box flex={1} overflow="auto">
+                <List dense disablePadding>
+                  {discoveredTopics.map((t: TopicInfo) => (
+                    <ListItem key={t.topic} disablePadding>
+                      <ListItemButton
+                        selected={selectedTopic === t.topic}
+                        onClick={() => setSelectedTopic(t.topic)}
+                      >
+                        <Box
+                          width="100%"
+                          display="flex"
+                          justifyContent="space-between"
+                        >
+                          <Typography fontSize={13}>{t.topic}</Typography>
+                          <Typography fontSize={11} color="gray">
+                            {t.count} msgs
+                          </Typography>
+                        </Box>
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            </>
+          )}
+
+          {/* Add new subscription */}
+          <Box px={2} py={1} borderTop="1px solid #1e293b">
+            <Typography fontSize={12} color="gray">
+              Add subscription
+            </Typography>
+            <Box display="flex" gap={1} mt={0.5}>
+              <input
+                style={{
+                  flex: 1,
+                  padding: '4px 8px',
+                  background: '#0f172a',
+                  color: '#e5e7eb',
+                  border: '1px solid #1e293b',
+                  borderRadius: 4,
+                }}
+                placeholder="Topic..."
+                value={newTopic}
+                onChange={(e) => setNewTopic(e.target.value)}
+              />
+              <Button
+                size="small"
+                variant="contained"
+                onClick={async () => {
+                  if (!newTopic) return;
+                  await window.mqttAPI.subscribe(newTopic, 0);
+                  addSubscription({ topic: newTopic, qos: 0 });
+                  setNewTopic('');
+                }}
+              >
+                Subscribe
+              </Button>
+            </Box>
           </Box>
         </Box>
 
-        <List disablePadding>
-          {filteredMessages.map((m, index) => (
-            <ListItem
-              key={`${m.topic}-${index}`}
-              sx={{
-                borderBottom: '1px solid #eee',
-                px: 2,
-                py: 0.5,
-                display: 'block',
+        {/* ===== RIGHT: MESSAGES & PUBLISH ===== */}
+        <Box flex={1} position="relative" display="flex" flexDirection="column">
+          {/* Publish controls */}
+          <Box
+            px={2}
+            py={1}
+            borderBottom="1px solid #1e293b"
+            display="flex"
+            gap={1}
+          >
+            <input
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                background: '#0f172a',
+                color: '#e5e7eb',
+                border: '1px solid #1e293b',
+                borderRadius: 4,
+              }}
+              placeholder="Topic..."
+              value={publishTopic}
+              onChange={(e) => setPublishTopic(e.target.value)}
+            />
+            <input
+              style={{
+                flex: 2,
+                padding: '4px 8px',
+                background: '#0f172a',
+                color: '#e5e7eb',
+                border: '1px solid #1e293b',
+                borderRadius: 4,
+              }}
+              placeholder="Message..."
+              value={publishMessage}
+              onChange={(e) => setPublishMessage(e.target.value)}
+            />
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => {
+                if (!publishTopic || !publishMessage) return;
+                window.mqttAPI.publish(publishTopic, publishMessage);
+                setPublishMessage('');
               }}
             >
+              Publish
+            </Button>
+          </Box>
+
+          {/* Messages list */}
+          <Box
+            ref={scrollRef}
+            onScroll={onScroll}
+            flex={1}
+            overflow="auto"
+            px={2}
+            py={1}
+          >
+            {filteredMessages.map((m: MqttMessage, idx: number) => (
               <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  mb: 0.5,
-                }}
+                key={`${m.topic}-${idx}`}
+                mb={1}
+                p={1}
+                borderRadius={1}
+                bgcolor="#020617"
+                border="1px solid #1e293b"
               >
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                <Typography fontSize={12} fontWeight={600}>
                   {m.topic}
                 </Typography>
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => {
-                    copyToEditor({ topic: m.topic, message: m.message });
-                    navigate('/json-editor');
-                  }}
-                >
-                  Edit JSON
-                </Button>
+                <Typography fontSize={12} color="gray" whiteSpace="pre-wrap">
+                  {m.message}
+                </Typography>
+
+                 <Button
+      size="small"
+      variant="outlined"
+      onClick={() => {
+        copyToEditor(m);
+        navigate('/json-editor');
+      }}
+    >
+      Copy
+    </Button>
               </Box>
 
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                {m.message}
-              </Typography>
-            </ListItem>
-          ))}
+            ))}
+            <div ref={bottomRef} />
+          </Box>
 
-          <div ref={messagesEndRef} />
-        </List>
-
-        {/* Scroll to bottom button */}
-        {showScrollToBottom && (
-          <Button
-            variant="contained"
-            size="small"
-            onClick={scrollToBottom}
-            sx={{
-              position: 'fixed',
-              bottom: 24,
-              right: 24,
-              zIndex: 10,
-            }}
-            startIcon={<ArrowDownwardIcon />}
-          >
-            New messages
-          </Button>
-        )}
+          {/* Scroll to bottom button */}
+          {showScrollDown && (
+            <IconButton
+              size="small"
+              onClick={() =>
+                bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+              }
+              sx={{
+                position: 'absolute',
+                bottom: 16,
+                right: 16,
+                bgcolor: '#020617',
+                border: '1px solid #1e293b',
+              }}
+            >
+              <ArrowDownward />
+            </IconButton>
+          )}
+        </Box>
       </Box>
     </Box>
   );

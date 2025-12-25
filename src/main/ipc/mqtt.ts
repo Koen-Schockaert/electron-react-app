@@ -1,13 +1,14 @@
-import { ipcMain, IpcMainInvokeEvent } from 'electron';import store from '../store';
-//import { MqttConnectionProfile } from '../../renderer/views/Settings/subviews/types';
-import mqtt, { MqttClient, IClientOptions, Packet } from 'mqtt';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
+import store from '../store';
+import mqtt, { MqttClient, IClientOptions, IPublishPacket } from 'mqtt';
 import fs from 'fs';
 import type {
   MqttConnectionProfile,
   MqttTestResult,
 } from '../../renderer/views/Settings/subviews/types';
+import { WebContents } from 'electron';
 
-
+let mqttSender: WebContents | null = null;
 
 let client: MqttClient | null = null;
 
@@ -55,75 +56,37 @@ export function registerMqttTestHandler() {
           clientId: profile.clientId,
           clean: profile.cleanSession,
           keepalive: profile.keepAlive,
-          reconnectPeriod: 0, // IMPORTANT: no retries
+          reconnectPeriod: 0,
           connectTimeout: 5_000,
         };
 
-        // TLS options
         if (profile.caPath) options.ca = fs.readFileSync(profile.caPath);
         if (profile.certPath) options.cert = fs.readFileSync(profile.certPath);
         if (profile.keyPath) options.key = fs.readFileSync(profile.keyPath);
 
         return await new Promise<MqttTestResult>((resolve) => {
-          const client = mqtt.connect(options);
+          const testClient = mqtt.connect(options);
 
-          const cleanup = () => {
-            client.end(true);
-          };
-
-          function connackMessage(code?: number): string {
-            switch (code) {
-              case 0:
-                return 'Connection accepted';
-              case 1:
-                return 'Connection refused: unacceptable protocol version';
-              case 2:
-                return 'Connection refused: identifier rejected';
-              case 3:
-                return 'Connection refused: broker unavailable';
-              case 4:
-                return 'Bad username or password';
-              case 5:
-                return 'Not authorized';
-              default:
-                return 'Connection rejected by broker';
-            }
-          }
-
-          let settled = false;
           const finish = (result: MqttTestResult) => {
-            if (!settled) {
-              settled = true;
-              cleanup();
-              resolve(result);
-            }
+            testClient.end(true);
+            resolve(result);
           };
 
-          client.once('connect', (connack) => {
-            if (connack.returnCode === 0) {
-              finish({
-                success: true,
-                message: 'Connection successful',
-              });
-            } else {
+          testClient.once('connect', () =>
+            finish({ success: true, message: 'Connection successful' }),
+          );
+          testClient.once('error', (err) =>
+            finish({ success: false, message: err.message }),
+          );
+
+          setTimeout(
+            () =>
               finish({
                 success: false,
-                message: connackMessage(connack.returnCode),
-              });
-            }
-          });
-
-          client.once('error', (err) => {
-            finish({ success: false, message: err.message });
-          });
-
-          setTimeout(() => {
-            cleanup();
-            resolve({
-              success: false,
-              message: 'Connection timed out',
-            });
-          }, 5_000);
+                message: 'Connection timed out',
+              }),
+            5_000,
+          );
         });
       } catch (err) {
         return {
@@ -135,62 +98,101 @@ export function registerMqttTestHandler() {
   );
 }
 
-
 export function registerMqttConnectHandler() {
-  // Connect to MQTT broker
-  ipcMain.handle('mqtt/connect', (event: IpcMainInvokeEvent, options: IClientOptions & { url: string }) => {
+  ipcMain.handle('mqtt/connect', (ipcEvent: IpcMainInvokeEvent, options) => {
     return new Promise<string>((resolve, reject) => {
-      if (client) client.end(); // disconnect previous connection
+      if (client) client.end(true);
+
+      mqttSender = ipcEvent.sender;
+
       client = mqtt.connect(options.url, options);
 
-      client.on('connect', () => {
-        console.log('MQTT connected');
-        resolve('connected');
-      });
+      client.on('connect', () => resolve('connected'));
 
-      client.on('error', (err: Error) => {
-        console.error('MQTT error', err);
-        reject(err.message);
-      });
+      client.on('error', (err) => reject(err.message));
 
-      // Forward messages to renderer
-      client.on('message', (topic: string, message: Buffer, packet: Packet) => {
-        event.sender.send('mqtt/message', { topic, message: message.toString() });
+      client.on('message', (topic, message, packet) => {
+        if (!mqttSender || mqttSender.isDestroyed()) return;
+
+        const publishPacket = packet as IPublishPacket;
+
+        mqttSender.send('mqtt/message', {
+          topic,
+          message: message.toString(),
+          qos: publishPacket.qos,
+          retain: publishPacket.retain,
+        });
       });
     });
   });
 
-  // Disconnect from MQTT broker
   ipcMain.handle('mqtt/disconnect', () => {
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string>((resolve) => {
       if (!client) return resolve('No active connection');
+
       client.end(false, {}, () => {
-        console.log('MQTT disconnected');
         client = null;
+        mqttSender = null;
         resolve('disconnected');
       });
     });
   });
 
-  // Subscribe to topics
-  ipcMain.handle('mqtt/subscribe', (event: IpcMainInvokeEvent, topic: string) => {
-    return new Promise<string>((resolve, reject) => {
-      if (!client) return reject('Not connected');
-      client.subscribe(topic, (err, granted) => {
-        if (err) reject(err.message);
-        else resolve(`Subscribed to ${topic}`);
-      });
-    });
-  });
+  /* ===== SUBSCRIBE (QoS-aware) ===== */
+  ipcMain.handle(
+    'mqtt/subscribe',
+    (_event: IpcMainInvokeEvent, topic: string, qos: 0 | 1 | 2 = 0) => {
+      return new Promise<void>((resolve, reject) => {
+        if (!client) return reject('Not connected');
 
-  // Publish message
-  ipcMain.handle('mqtt/publish', (event: IpcMainInvokeEvent, { topic, message }: { topic: string; message: string }) => {
-    return new Promise<string>((resolve, reject) => {
-      if (!client) return reject('Not connected');
-      client.publish(topic, message, (err) => {
-        if (err) reject(err.message);
-        else resolve(`Published to ${topic}`);
+        client.subscribe(topic, { qos }, (err) => {
+          if (err) reject(err.message);
+          else resolve();
+        });
       });
-    });
-  });
+    },
+  );
+
+  /* ===== UNSUBSCRIBE ===== */
+  ipcMain.handle(
+    'mqtt/unsubscribe',
+    (_event: IpcMainInvokeEvent, topic: string) => {
+      return new Promise<void>((resolve, reject) => {
+        if (!client) return reject('Not connected');
+
+        client.unsubscribe(topic, (err) => {
+          if (err) reject(err.message);
+          else resolve();
+        });
+      });
+    },
+  );
+
+  /* ===== PUBLISH ===== */
+  ipcMain.handle(
+    'mqtt/publish',
+    (
+      _event: IpcMainInvokeEvent,
+      {
+        topic,
+        message,
+        qos = 0,
+        retain = false,
+      }: {
+        topic: string;
+        message: string;
+        qos?: 0 | 1 | 2;
+        retain?: boolean;
+      },
+    ) => {
+      return new Promise<void>((resolve, reject) => {
+        if (!client) return reject('Not connected');
+
+        client.publish(topic, message, { qos, retain }, (err) => {
+          if (err) reject(err.message);
+          else resolve();
+        });
+      });
+    },
+  );
 }
