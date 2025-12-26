@@ -17,10 +17,10 @@ export default function PageLayout({
   return (
     <Box
       sx={{
-        height: '100%',        // 🔒 bounded
+        height: '100%', // 🔒 bounded
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',    // 🔒 critical
+        overflow: 'hidden', // 🔒 critical
         bgcolor: '#0f172a',
         color: '#e5e7eb',
       }}
@@ -39,7 +39,14 @@ export default function PageLayout({
           }}
         >
           {title && (
-            <Typography level="title-lg" sx={{ fontWeight: 600 }}>
+            <Typography
+              level="title-lg"
+              sx={{
+                fontWeight: 700,
+                color: '#f9fafb',
+                letterSpacing: '0.02em',
+              }}
+            >
               {title}
             </Typography>
           )}
@@ -48,10 +55,10 @@ export default function PageLayout({
       )}
 
       {/* BODY */}
-       <Box
+      <Box
         sx={{
           height: '100%',
-          minHeight: 0,       // ⭐ REQUIRED
+          minHeight: 0, // ⭐ REQUIRED
           overflow: 'hidden', // ⭐ REQUIRED
           display: 'flex',
           flexDirection: 'column',
@@ -62,4 +69,3 @@ export default function PageLayout({
     </Box>
   );
 }
-

@@ -7,6 +7,8 @@ import { EditorView } from '@codemirror/view';
 import { useMqtt } from '../../context/MqttContext';
 import { DarkTextField } from '../../components/form/LabeledTextField';
 import PageLayout from '../../layout/PageLaout';
+import { jsonExtensions } from '../../components/EditorTheme';
+import { jsonErrorHighlighter } from '../../components/InvalidJsonHighlighter';
 
 export default function JsonEditorView() {
   const { editorMessage, connected } = useMqtt();
@@ -15,6 +17,10 @@ export default function JsonEditorView() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [jsonError, setJsonError] = useState<{
+    message: string;
+    position: number;
+  } | null>(null);
 
   // Load incoming message
   useEffect(() => {
@@ -36,9 +42,13 @@ export default function JsonEditorView() {
     try {
       JSON.parse(text);
       setError(null);
+      setJsonError(null);
       return true;
-    } catch (e: any) {
-      setError(e.message);
+    } catch (err: any) {
+      setError(err.message);
+      const match = /at position (\d+)/.exec(err.message);
+      const pos = match ? parseInt(match[1], 10) : 0;
+      setJsonError({ message: err.message, position: pos });
       return false;
     }
   };
@@ -48,6 +58,7 @@ export default function JsonEditorView() {
       const parsed = JSON.parse(message);
       setMessage(JSON.stringify(parsed, null, 2));
       setError(null);
+      setJsonError(null);
     } catch {
       setError('Cannot format invalid JSON');
     }
@@ -70,20 +81,49 @@ export default function JsonEditorView() {
 
   return (
     <PageLayout title="JSON Editor">
-      {/* Scrollable body */}
       <Box
         sx={{
           flex: 1,
-          overflow: 'auto', // ✅ ONLY scroll area
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
           p: 2,
         }}
       >
-        <Box>
+        {/* ===== STICKY ERROR BANNER ===== */}
+        {error && (
+          <Alert
+            color="danger"
+            variant="soft"
+            sx={{
+              flexShrink: 0,
+              mb: 1,
+              borderRadius: 0,
+              borderBottom: '1px solid #7f1d1d',
+              bgcolor: '#3f0d12',
+              color: '#fecaca',
+            }}
+          >
+            {error}
+          </Alert>
+        )}
+
+        {/* ===== TOOLBAR (FIXED) ===== */}
+        <Box
+          sx={{
+            flexShrink: 0,
+            display: 'flex',
+            gap: 1,
+            alignItems: 'center',
+            py: 1,
+            mb: 1,
+            borderBottom: '1px solid #1e293b',
+          }}
+        >
           {editorMessage && (
             <Tooltip title="Copy topic & message">
               <IconButton
                 variant="outlined"
-                color="primary"
                 onClick={() => {
                   navigator.clipboard.writeText(
                     `Topic: ${editorMessage.topic}\nMessage: ${editorMessage.message}`,
@@ -92,94 +132,80 @@ export default function JsonEditorView() {
                 sx={{
                   borderColor: '#1e293b',
                   color: '#e5e7eb',
-                  '&:hover': {
-                    bgcolor: '#1e293b',
-                  },
+                  '&:hover': { bgcolor: '#1e293b' },
                 }}
               >
                 <ContentPasteGo />
               </IconButton>
             </Tooltip>
           )}
-        </Box>
-        {/* ===== BODY ===== */}
-        <Box
-          display="flex"
-          flexDirection="column"
-          flex={1}
-          p={3}
-          overflow="hidden"
-        >
-          {/* Error alert */}
-          {error && (
-            <Alert color="danger" variant="soft" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
 
-          {/* Topic input */}
-          <Box mb={2}>
-            <DarkTextField
-              label="Topic"
-              value={topic}
-              onChange={setTopic}
-              placeholder="Enter MQTT topic"
-              disabled={publishing}
-            />
-          </Box>
-
-          {/* Controls */}
-          <Box display="flex" gap={1} mb={2}>
-            <Button
-              variant="outlined"
-              startDecorator={<FormatColorFill />}
-              onClick={formatJson}
-              disabled={publishing || !message.trim()}
-            >
-              Format JSON
-            </Button>
-          </Box>
-
-          {/* Code editor */}
-          <Box
-            flex={1}
-            mb={2}
-            sx={{
-              overflow: 'auto',
-              border: '1px solid #1e293b',
-              borderRadius: 1,
-            }}
+          <Button
+            variant="outlined"
+            startDecorator={<FormatColorFill />}
+            onClick={formatJson}
+            disabled={publishing || !message.trim()}
           >
-            <CodeMirror
-              value={message}
-              extensions={[json(), EditorView.lineWrapping]}
-              onChange={(value) => {
-                setMessage(value);
-                validateJson(value);
-              }}
-              style={{
-                height: '100%',
-                backgroundColor: '#0f172a',
-                color: '#e5e7eb',
-                fontFamily: 'monospace',
-                borderRadius: 4,
-              }}
-            />
-          </Box>
+            Format JSON
+          </Button>
+        </Box>
 
-          {/* Publish button sticky at bottom */}
-          <Box flexShrink={0}>
-            <Button
-              variant="solid"
-              disabled={
-                !connected || !!error || !message.trim() || !topic.trim()
-              }
-              onClick={handlePublish}
-              sx={{ width: 120 }}
-            >
-              Publish
-            </Button>
-          </Box>
+        {/* ===== TOPIC INPUT (FIXED) ===== */}
+        <Box mb={2} flexShrink={0}>
+          <DarkTextField
+            label="Topic"
+            value={topic}
+            onChange={setTopic}
+            placeholder="Enter MQTT topic"
+            disabled={publishing}
+          />
+        </Box>
+
+        {/* ===== MESSAGE EDITOR (SCROLLABLE ONLY) ===== */}
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            border: '1px solid #1e293b',
+            borderRadius: 1,
+            mb: 2,
+            '.cm-json-error': {
+              backgroundColor: 'rgba(220, 38, 38, 0.3)', // red-ish background
+            },
+          }}
+        >
+          <CodeMirror
+            value={message}
+            extensions={[
+              json(),
+              EditorView.lineWrapping,
+              jsonExtensions,
+              jsonErrorHighlighter(jsonError ? jsonError.position : null),
+            ]}
+            onChange={(value) => {
+              setMessage(value);
+              validateJson(value);
+            }}
+            style={{
+              height: '100%',
+              backgroundColor: '#0f172a',
+              color: '#e5e7eb',
+              fontFamily: 'monospace',
+            }}
+          />
+        </Box>
+
+        {/* ===== PUBLISH BUTTON (FIXED) ===== */}
+        <Box flexShrink={0}>
+          <Button
+            variant="solid"
+            disabled={!connected || !!error || !message.trim() || !topic.trim()}
+            onClick={handlePublish}
+            sx={{ width: 120 }}
+          >
+            Publish
+          </Button>
         </Box>
       </Box>
     </PageLayout>
