@@ -81,36 +81,46 @@ const MqttView: React.FC = () => {
     return tLen === fLen; // must match length if no #
   }
 
-  function getAllDescendantTopics(items: TopicTreeItem[], selectedIds: Set<string>): string[] {
-  const result: string[] = [];
+  function getAllDescendantTopics(
+    items: TopicTreeItem[],
+    selectedIds: Set<string>,
+  ): string[] {
+    const result: string[] = [];
 
-  function traverse(node: TopicTreeItem) {
-    if (selectedIds.has(node.id)) {
-      collectAll(node);
-    } else if (node.children) {
-      node.children.forEach(traverse);
+    function traverse(node: TopicTreeItem) {
+      if (selectedIds.has(node.id)) {
+        collectAll(node);
+      } else if (node.children) {
+        node.children.forEach(traverse);
+      }
     }
+
+    function collectAll(node: TopicTreeItem) {
+      result.push(node.id);
+      if (node.children) node.children.forEach(collectAll);
+    }
+
+    items.forEach(traverse);
+    return result;
   }
-
-  function collectAll(node: TopicTreeItem) {
-    result.push(node.id);
-    if (node.children) node.children.forEach(collectAll);
-  }
-
-  items.forEach(traverse);
-  return result;
-}
-
 
   const filteredMessages = useMemo(() => {
     if (selectedFilters.length === 0) return messages;
 
-    return messages.filter((m) => {
-      const topicLevels = m.topic.split('/');
-      return selectedFilters.some((filterLevels) =>
-        mqttMatch(topicLevels, filterLevels),
+    if (discoveredSelectedTopics.size >> 0) {
+      return messages.filter((m) =>
+        [...discoveredSelectedTopics].some(
+          (topic) => m.topic === topic || m.topic.startsWith(topic + '/'),
+        ),
       );
-    });
+    } else {
+      return messages.filter((m) => {
+        const topicLevels = m.topic.split('/');
+        return selectedFilters.some((filterLevels) =>
+          mqttMatch(topicLevels, filterLevels),
+        );
+      });
+    }
   }, [messages, selectedFilters]);
 
   /* ================= AUTO SCROLL ================= */

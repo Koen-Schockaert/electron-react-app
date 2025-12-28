@@ -11,7 +11,7 @@ type TopicTreeProps = {
   //clearSubscribed: void;
 };
 
-export function buildTopicTree(topics: TopicInfo[]): TopicTreeItem[] {
+function buildTopicTree(topics: TopicInfo[]): TopicTreeItem[] {
   const root = new Map<string, any>();
 
   for (const { topic, count } of topics) {
