@@ -59,6 +59,7 @@ export interface MqttAPI {
   connect: (options: { url: string; username?: string; password?: string }) => Promise<string>;
   disconnect: () => Promise<string>;
   subscribe: (topic: string) => Promise<string>;
+  unsubscribe: (topic: string) => Promise<string>;
   publish: (topic: string, message: string) => Promise<string>;
   onMessage: (callback: (data: { topic: string; message: string }) => void) => void;
 }
@@ -67,6 +68,7 @@ contextBridge.exposeInMainWorld('mqttAPI', {
   connect: (options: Parameters<MqttAPI['connect']>[0]) => ipcRenderer.invoke('mqtt/connect', options),
   disconnect: () => ipcRenderer.invoke('mqtt/disconnect'),
   subscribe: (topic: Parameters<MqttAPI['subscribe']>[0]) => ipcRenderer.invoke('mqtt/subscribe', topic),
+  unsubscribe: (topic: Parameters<MqttAPI['unsubscribe']>[0]) => ipcRenderer.invoke('mqtt/unsubscribe', topic),
   publish: (topic: Parameters<MqttAPI['publish']>[0], message: Parameters<MqttAPI['publish']>[1]) =>
     ipcRenderer.invoke('mqtt/publish', { topic, message }),
   onMessage: (callback: Parameters<MqttAPI['onMessage']>[0]) =>

@@ -16,11 +16,7 @@ import {
 import { Pause, PlayArrow, ArrowDownward, Clear } from '@mui/icons-material';
 import { Chip, Divider } from '@mui/joy';
 import { useMqtt } from '../../context/MqttContext';
-import type {
-  MqttMessage,
-  MqttSubscription,
-  TopicInfo,
-} from '../../types/global';
+import type { MqttMessage } from '../../types/global';
 
 const SCROLL_THRESHOLD = 80;
 
@@ -33,13 +29,15 @@ const MqttView: React.FC = () => {
     subscriptions,
     addSubscription,
     removeSubscription,
+    removeMessages,
     clearMessages,
     copyToEditor,
   } = useMqtt();
 
   const navigate = useNavigate();
 
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
+
   const [paused, setPaused] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
@@ -57,9 +55,10 @@ const MqttView: React.FC = () => {
 
   /* ================= FILTERED MESSAGES ================= */
   const filteredMessages = useMemo(() => {
-    if (!selectedTopic) return messages;
-    return messages.filter((m) => m.topic === selectedTopic);
-  }, [messages, selectedTopic]);
+    if (selectedTopics.size === 0) return messages;
+
+    return messages.filter((m) => selectedTopics.has(m.topic));
+  }, [messages, selectedTopics]);
 
   /* ================= AUTO SCROLL ================= */
   useEffect(() => {
@@ -161,15 +160,55 @@ const MqttView: React.FC = () => {
                 {subscriptions.map((sub) => (
                   <ListItem key={sub.topic} disablePadding>
                     <ListItemButton
-                      selected={selectedTopic === sub.topic}
-                      onClick={() =>
-                        setSelectedTopic(
-                          selectedTopic === sub.topic ? null : sub.topic,
-                        )
-                      }
+                      selected={selectedTopics.has(sub.topic)}
+                      onClick={(event) => {
+                        setSelectedTopics((prev) => {
+                          const next = new Set(prev);
+
+                          const isMultiSelect = event.ctrlKey || event.metaKey;
+
+                          if (isMultiSelect) {
+                            // toggle only this item
+                            if (next.has(sub.topic)) {
+                              next.delete(sub.topic);
+                            } else {
+                              next.add(sub.topic);
+                            }
+                          } else {
+                            // normal click = single selection
+                            next.clear();
+                            next.add(sub.topic);
+                          }
+
+                          return next;
+                        });
+                      }}
                     >
                       <Typography fontSize={13}>{sub.topic}</Typography>
                     </ListItemButton>
+
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+
+                        if (!sub.topic) return;
+                        await window.mqttAPI.unsubscribe(sub.topic);
+                        removeSubscription(sub.topic);
+                        removeMessages(sub.topic);
+
+                        setSelectedTopics((prev) => {
+                          const next = new Set(prev);
+                          next.delete(sub.topic);
+                          return next;
+                        });
+
+                        setNewTopic('');
+                      }}
+                    >
+                      Unsubscribe
+                    </Button>
                   </ListItem>
                 ))}
               </List>
@@ -206,8 +245,29 @@ const MqttView: React.FC = () => {
                   {discoveredTopics.map((t) => (
                     <ListItem key={t.topic} disablePadding>
                       <ListItemButton
-                        selected={selectedTopic === t.topic}
-                        onClick={() => setSelectedTopic(t.topic)}
+                        selected={selectedTopics.has(t.topic)}
+                        onClick={(event) => {
+                          setSelectedTopics((prev) => {
+                            const next = new Set(prev);
+                            const isMultiSelect =
+                              event.ctrlKey || event.metaKey;
+
+                            if (isMultiSelect) {
+                              // Ctrl/Cmd → toggle
+                              if (next.has(t.topic)) {
+                                next.delete(t.topic);
+                              } else {
+                                next.add(t.topic);
+                              }
+                            } else {
+                              // Normal click → single select
+                              next.clear();
+                              next.add(t.topic);
+                            }
+
+                            return next;
+                          });
+                        }}
                       >
                         <Box
                           width="100%"
@@ -329,7 +389,6 @@ const MqttView: React.FC = () => {
             overflow="auto"
             px={2}
             py={1}
-            
           >
             {filteredMessages.map((m: MqttMessage, idx: number) => (
               <Box
@@ -339,7 +398,6 @@ const MqttView: React.FC = () => {
                 borderRadius={1}
                 bgcolor="#020617"
                 border="1px solid #1e293b"
-
               >
                 <Typography fontSize={12} fontWeight={600}>
                   {m.topic}

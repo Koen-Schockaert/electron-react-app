@@ -41,6 +41,7 @@ interface MqttContextType {
 
   /* Message handling */
   addMessage: (msg: MqttMessage) => void;
+  removeMessages: (topic: string) => void;
   clearMessages: () => void;
 
   /* Subscription handling */
@@ -72,6 +73,10 @@ export const MqttProvider = ({ children }: { children: ReactNode }) => {
     setMessages((prev) => [...prev, msg]);
 
   const clearMessages = () => setMessages([]);
+
+  const removeMessages = (topic: string) =>
+    setMessages((prev) => prev.filter((s) => s.topic !== topic));
+
 
   /* ---------- Subscriptions ---------- */
   const addSubscription = (sub: MqttSubscription) =>
@@ -122,6 +127,7 @@ export const MqttProvider = ({ children }: { children: ReactNode }) => {
     setClientProfile,
     addMessage,
     clearMessages,
+    removeMessages,
     addSubscription,
     removeSubscription,
     editorMessage,
