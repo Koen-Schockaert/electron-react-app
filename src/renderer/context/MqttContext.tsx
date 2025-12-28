@@ -13,16 +13,18 @@ import React, {
   useMemo,
 } from 'react';
 //import type { MqttMessage } from '../types/global';
-import type { MqttMessage, MqttSubscription } from '../types/global';
+import type { MqttMessage, MqttSubscription, TopicInfo, TreeItem } from '../types/global';
 
 import type { MqttConnectionProfile } from '../views/Settings/subviews/types';
 
 /* ===================== TYPES ===================== */
-
+/*
 export interface TopicInfo {
   topic: string;
   count: number;
 }
+*/
+
 
 interface MqttContextType {
   connected: boolean;

@@ -13,10 +13,12 @@ import {
   Typography,
   Tooltip,
 } from '@mui/material';
+
 import { Pause, PlayArrow, ArrowDownward, Clear } from '@mui/icons-material';
 import { Chip, Divider } from '@mui/joy';
 import { useMqtt } from '../../context/MqttContext';
-import type { MqttMessage } from '../../types/global';
+import type { MqttMessage, TopicTreeItem } from '../../types/global';
+import { TopicTree } from './TopicTreeComponent';
 
 const SCROLL_THRESHOLD = 80;
 
@@ -36,7 +38,12 @@ const MqttView: React.FC = () => {
 
   const navigate = useNavigate();
 
-  const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
+  const [subscribedSelectedTopics, setSubscibedSelectedTopics] = useState<
+    Set<string>
+  >(new Set());
+  const [discoveredSelectedTopics, setDiscoveredSelectedTopics] = useState<
+    Set<string>
+  >(new Set());
 
   const [paused, setPaused] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -53,12 +60,58 @@ const MqttView: React.FC = () => {
     console.log('Received messages:', messages);
   }, [messages]);
 
-  /* ================= FILTERED MESSAGES ================= */
-  const filteredMessages = useMemo(() => {
-    if (selectedTopics.size === 0) return messages;
+  // Precompute selected topics into arrays once
+  const selectedFilters = useMemo(() => {
+    return [...discoveredSelectedTopics, ...subscribedSelectedTopics].map((t) =>
+      t.split('/'),
+    );
+  }, [discoveredSelectedTopics, subscribedSelectedTopics]);
 
-    return messages.filter((m) => selectedTopics.has(m.topic));
-  }, [messages, selectedTopics]);
+  function mqttMatch(topicLevels: string[], filterLevels: string[]): boolean {
+    const tLen = topicLevels.length;
+    const fLen = filterLevels.length;
+
+    for (let i = 0; i < fLen; i++) {
+      const f = filterLevels[i];
+      if (f === '#') return true; // # matches everything from here
+      if (f === '+') continue; // + matches any single level
+      if (i >= tLen || topicLevels[i] !== f) return false;
+    }
+
+    return tLen === fLen; // must match length if no #
+  }
+
+  function getAllDescendantTopics(items: TopicTreeItem[], selectedIds: Set<string>): string[] {
+  const result: string[] = [];
+
+  function traverse(node: TopicTreeItem) {
+    if (selectedIds.has(node.id)) {
+      collectAll(node);
+    } else if (node.children) {
+      node.children.forEach(traverse);
+    }
+  }
+
+  function collectAll(node: TopicTreeItem) {
+    result.push(node.id);
+    if (node.children) node.children.forEach(collectAll);
+  }
+
+  items.forEach(traverse);
+  return result;
+}
+
+
+  const filteredMessages = useMemo(() => {
+    if (selectedFilters.length === 0) return messages;
+
+    return messages.filter((m) => {
+      const topicLevels = m.topic.split('/');
+      return selectedFilters.some((filterLevels) =>
+        mqttMatch(topicLevels, filterLevels),
+      );
+    });
+  }, [messages, selectedFilters]);
 
   /* ================= AUTO SCROLL ================= */
   useEffect(() => {
@@ -83,12 +136,25 @@ const MqttView: React.FC = () => {
     );
   }
 
+  const setSelectedTopicsA = (selectedTopics: Set<string>) => {
+    setSubscibedSelectedTopics(new Set());
+    setDiscoveredSelectedTopics(selectedTopics);
+  };
+
+  useEffect(() => {
+    if (discoveredSelectedTopics.size >> 0) {
+      setSelectedTopicsA(discoveredSelectedTopics);
+    }
+  }, [discoveredSelectedTopics]);
+
   /* ================= DISCOVERED TOPICS ================= */
   const discoveredTopics = useMemo(() => {
     return topicsWithMessages.filter(
       (t) => !subscriptions.some((s) => s.topic === t.topic),
     );
   }, [topicsWithMessages, subscriptions]);
+
+  /* ================= TREEBUILDER ================= */
 
   return (
     <PageLayout
@@ -160,9 +226,9 @@ const MqttView: React.FC = () => {
                 {subscriptions.map((sub) => (
                   <ListItem key={sub.topic} disablePadding>
                     <ListItemButton
-                      selected={selectedTopics.has(sub.topic)}
+                      selected={subscribedSelectedTopics.has(sub.topic)}
                       onClick={(event) => {
-                        setSelectedTopics((prev) => {
+                        setSubscibedSelectedTopics((prev) => {
                           const next = new Set(prev);
 
                           const isMultiSelect = event.ctrlKey || event.metaKey;
@@ -182,6 +248,7 @@ const MqttView: React.FC = () => {
 
                           return next;
                         });
+                        setDiscoveredSelectedTopics(new Set());
                       }}
                     >
                       <Typography fontSize={13}>{sub.topic}</Typography>
@@ -198,7 +265,7 @@ const MqttView: React.FC = () => {
                         removeSubscription(sub.topic);
                         removeMessages(sub.topic);
 
-                        setSelectedTopics((prev) => {
+                        setSubscibedSelectedTopics((prev) => {
                           const next = new Set(prev);
                           next.delete(sub.topic);
                           return next;
@@ -241,48 +308,11 @@ const MqttView: React.FC = () => {
               </Typography>
 
               <Box flex={1} minHeight={0} overflow="auto">
-                <List dense disablePadding>
-                  {discoveredTopics.map((t) => (
-                    <ListItem key={t.topic} disablePadding>
-                      <ListItemButton
-                        selected={selectedTopics.has(t.topic)}
-                        onClick={(event) => {
-                          setSelectedTopics((prev) => {
-                            const next = new Set(prev);
-                            const isMultiSelect =
-                              event.ctrlKey || event.metaKey;
-
-                            if (isMultiSelect) {
-                              // Ctrl/Cmd → toggle
-                              if (next.has(t.topic)) {
-                                next.delete(t.topic);
-                              } else {
-                                next.add(t.topic);
-                              }
-                            } else {
-                              // Normal click → single select
-                              next.clear();
-                              next.add(t.topic);
-                            }
-
-                            return next;
-                          });
-                        }}
-                      >
-                        <Box
-                          width="100%"
-                          display="flex"
-                          justifyContent="space-between"
-                        >
-                          <Typography fontSize={13}>{t.topic}</Typography>
-                          <Typography fontSize={11} color="gray">
-                            {t.count} msgs
-                          </Typography>
-                        </Box>
-                      </ListItemButton>
-                    </ListItem>
-                  ))}
-                </List>
+                <TopicTree
+                  topics={discoveredTopics}
+                  selectedTopics={discoveredSelectedTopics}
+                  setSelectedTopics={setDiscoveredSelectedTopics}
+                />
               </Box>
             </Box>
           )}

@@ -1,6 +1,5 @@
 // src/renderer/types/global.ts
-import { MqttConnectionProfile } from '../views/Settings/subviews/types';
-import { MqttTestResult } from '../views/Settings/subviews/types';
+import { MqttConnectionProfile, MqttTestResult} from '../views/Settings/subviews/types';
 
 export {};
 
@@ -13,6 +12,26 @@ export interface TopicInfo {
   topic: string;
   count: number;
 }
+
+export interface TreeItem {
+  id: string;
+  label: string;
+  children?: TreeItem[];
+  count?: number;
+}
+
+export interface TopicTreeItemContentProps {
+  label: string;
+  count?: number;
+}
+
+export interface TopicTreeItem {
+  id: string;
+  label: string;
+  count?: number;
+  children?: TopicTreeItem[];
+}
+
 
 export interface MqttSubscription {
   topic: string;
