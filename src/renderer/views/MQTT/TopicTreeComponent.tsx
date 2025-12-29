@@ -3,12 +3,13 @@ import Box from '@mui/material/Box';
 import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
 
 import { TopicInfo, TopicTreeItem } from '../../types/global';
+import { TreeItem, treeItemClasses } from '@mui/x-tree-view/TreeItem';
+import { styled, alpha } from '@mui/material/styles';
 
 type TopicTreeProps = {
   topics: TopicInfo[];
   selectedTopics: Set<string>;
   setSelectedTopics: React.Dispatch<React.SetStateAction<Set<string>>>;
-  //clearSubscribed: void;
 };
 
 function buildTopicTree(topics: TopicInfo[]): TopicTreeItem[] {
@@ -67,6 +68,48 @@ export function TopicTree({
     [setSelectedTopics],
   );
 
+  const CustomTreeItem = styled(TreeItem)(({ theme }) => ({
+    color: theme.palette.grey[200],
+
+    [`& .${treeItemClasses.content}`]: {
+      [`& .${treeItemClasses.label}`]: {
+        fontSize: '0.8rem',
+        fontWeight: 500,
+      },
+
+      // 🔹 selected state using data-selected (inside content!)
+      '&[data-selected="true"]': {
+        backgroundColor: 'rgba(255, 255, 255, 0.12)',
+        color: '#fff',
+
+        [`& .${treeItemClasses.label}`]: {
+          color: '#fff',
+          fontWeight: 500,
+        },
+      },
+
+      '&[data-selected="true"]:hover': {
+        backgroundColor: 'rgba(255, 255, 255, 0.18)',
+      },
+    },
+
+    [`& .${treeItemClasses.iconContainer}`]: {
+      ...theme.applyStyles('light', {
+        backgroundColor: alpha(theme.palette.primary.main, 0.25),
+      }),
+      ...theme.applyStyles('dark', {
+        color: theme.palette.primary.contrastText,
+      }),
+    },
+
+    [`& .${treeItemClasses.groupTransition}`]: {
+      borderLeft: `1px dashed ${alpha(theme.palette.text.primary, 0.4)}`,
+    },
+
+    ...theme.applyStyles('light', {
+      color: theme.palette.common.white,
+    }),
+  }));
 
   return (
     <Box flex={1} minHeight={0} overflow="auto">
@@ -76,6 +119,7 @@ export function TopicTree({
         expansionTrigger="content"
         selectedItems={[...selectedTopics]}
         onSelectedItemsChange={handleSelectionChange}
+        slots={{ item: CustomTreeItem }}
         getItemLabel={(item) =>
           item.count !== undefined
             ? `${item.label} (${item.count})`

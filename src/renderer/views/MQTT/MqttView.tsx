@@ -136,6 +136,24 @@ const MqttView: React.FC = () => {
     setShowScrollDown(!atBottom);
   };
 
+  const countMessages = (subscription: string) => {
+    // Match everything
+    if (subscription === '#') {
+      return messages.length;
+    }
+
+    // Convert MQTT wildcard to RegExp
+    const regex = new RegExp(
+      '^' +
+        subscription
+          .replace(/\+/g, '[^/]+') // single-level wildcard
+          .replace(/#/g, '.*') + // multi-level wildcard
+        '$',
+    );
+
+    return messages.filter((m) => regex.test(m.topic)).length;
+  };
+
   if (!connected) {
     return (
       <Box p={3}>
@@ -237,6 +255,16 @@ const MqttView: React.FC = () => {
                   <ListItem key={sub.topic} disablePadding>
                     <ListItemButton
                       selected={subscribedSelectedTopics.has(sub.topic)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        '&.Mui-selected': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                        },
+                        '&.Mui-selected:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                        },
+                      }}
                       onClick={(event) => {
                         setSubscibedSelectedTopics((prev) => {
                           const next = new Set(prev);
@@ -261,12 +289,32 @@ const MqttView: React.FC = () => {
                         setDiscoveredSelectedTopics(new Set());
                       }}
                     >
-                      <Typography fontSize={13}>{sub.topic}</Typography>
+                      <Typography
+                        fontSize={13}
+                        sx={{
+                          flexGrow: 1,
+                          minWidth: 0, // 🔴 critical for flex overflow
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {sub.topic}
+                      </Typography>
+
+                      <Chip size="sm" sx={{ ml: 'auto', mr: 1 }}>
+                        {countMessages(sub.topic)} msgs
+                      </Chip>
                     </ListItemButton>
 
                     <Button
                       size="small"
                       variant="outlined"
+                      sx={{
+                        minHeight: 24,
+                        padding: '2px 6px',
+                        fontSize: '0.7rem',
+                      }}
                       onClick={async (e) => {
                         e.stopPropagation();
 
