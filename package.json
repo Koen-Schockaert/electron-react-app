@@ -1,6 +1,6 @@
 {
-  "name": "electron-react-app",
-  "description": "A foundation for scalable desktop apps",
+  "name": "mqtt-client",
+  "description": "A mqtt client with json editor",
   "license": "MIT",
   "version": "0.1.0",
   "main": "./.erb/dll/main.bundle.dev.js",
@@ -168,8 +168,8 @@
     "webpack-merge": "^6.0.1"
   },
   "build": {
-    "productName": "ElectronReactApp",
-    "appId": "electron-react-app",
+    "productName": "MqttClient",
+    "appId": "mqtt-client",
     "asar": true,
     "afterSign": ".erb/scripts/notarize.js",
     "asarUnpack": "**\\*.{node,dll}",
@@ -228,8 +228,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "electron-react-app",
-      "repo": "electron-react-app"
+      "owner": "koen-schockaert",
+      "repo": "mqtt-client"
     }
   },
   "devEngines": {
