@@ -6,6 +6,9 @@ on:
       - main
       - beta
       - alpha
+      
+permissions:
+  contents: write
 
 jobs:
   build:
