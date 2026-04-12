@@ -2,7 +2,7 @@
   "name": "mqtt-client",
   "description": "A mqtt client with json editor",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "main": "./.erb/dll/main.bundle.dev.js",
   "scripts": {
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",
@@ -179,7 +179,10 @@
     ],
     "mac": {
       "notarize": false,
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "type": "distribution",
       "hardenedRuntime": true,
       "entitlements": "assets/entitlements.mac.plist",
