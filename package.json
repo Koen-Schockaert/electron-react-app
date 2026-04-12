@@ -228,8 +228,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "koen-schockaert",
-      "repo": "mqtt-client"
+      "owner": "Koen-Schockaert",
+      "repo": "electron-rect-app"
     }
   },
   "devEngines": {
