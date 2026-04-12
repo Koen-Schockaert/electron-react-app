@@ -1,12 +1,12 @@
 {
-  "name": "electron-react-app",
-  "version": "0.1.0",
-  "description": "A foundation for scalable desktop apps",
+  "name": "mqtt-client",
+  "version": "1.0.0",
+  "description": "A mqtt client with json editor",
   "license": "MIT",
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://github.com/electron-react-boilerplate"
+    "name": "Koen Schockaert",
+    "email": "koen.schockaert@gmail.com",
+    "url": "https://github.com/Koen-Schockaert"
   },
   "main": "./dist/main/main.js",
   "scripts": {
