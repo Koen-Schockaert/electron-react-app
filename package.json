@@ -171,22 +171,15 @@
     "productName": "MqttClient",
     "appId": "mqtt-client",
     "asar": true,
-    "afterSign": ".erb/scripts/notarize.js",
+    "afterSign": null,
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
       "dist",
-      "node_modules",
       "package.json"
     ],
     "mac": {
       "notarize": false,
-      "target": {
-        "target": "default",
-        "arch": [
-          "arm64",
-          "x64"
-        ]
-      },
+      "target": ["dmg", "zip"],
       "type": "distribution",
       "hardenedRuntime": true,
       "entitlements": "assets/entitlements.mac.plist",
@@ -229,7 +222,8 @@
     "publish": {
       "provider": "github",
       "owner": "Koen-Schockaert",
-      "repo": "electron-react-app"
+      "repo": "electron-react-app",
+      "releaseType": "release"
     }
   },
   "devEngines": {

@@ -1,45 +1,40 @@
-name: Publish
+name: Build and Release
 
 on:
   push:
     branches:
       - main
-      #- beta
-      #- alpha
+      - beta
+      - alpha
 
 jobs:
-  publish:
-    if: ${{ github.repository_owner == 'koen-schockaert' }}
+  build:
+    if: ${{ github.repository_owner == 'Koen-Schockaert' }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
 
     runs-on: ${{ matrix.os }}
 
-    strategy:
-      matrix:
-        os: [macos-latest]
-
-    permissions:
-      contents: write
-      packages: write
-
     steps:
-      - name: Checkout git repo
-        uses: actions/checkout@v5
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Install Node and NPM
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: Install and build
-        run: |
-          npm install
-          npm run postinstall
-          npm run build
+      - name: Install dependencies
+        run: npm install
 
-      - name: Publish releases
+      - name: Build app
+        run: npm run build
+
+      - name: Build & publish Electron app
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          npm exec electron-builder -- --publish always --win --mac --linux
-
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --publish always
