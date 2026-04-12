@@ -229,7 +229,7 @@
     "publish": {
       "provider": "github",
       "owner": "Koen-Schockaert",
-      "repo": "electron-rect-app"
+      "repo": "electron-react-app"
     }
   },
   "devEngines": {
