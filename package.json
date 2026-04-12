@@ -179,6 +179,7 @@
     "afterSign": null,
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
+      ".erb",
       "dist",
       "package.json",
       "assets"
