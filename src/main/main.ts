@@ -153,10 +153,25 @@ ipcMain.handle(
   },
 );
 
+// 🔥 logging (important for debugging updates)
+autoUpdater.logger = log;
+(autoUpdater.logger as any).transports.file.level = "info";
+
+autoUpdater.on("update-available", () => {
+  console.log("Update available");
+});
+
+autoUpdater.on("update-downloaded", () => {
+  console.log("Update downloaded, restarting...");
+
+  autoUpdater.quitAndInstall();
+});
+
 app
   .whenReady()
   .then(() => {
     createWindow();
+    autoUpdater.checkForUpdatesAndNotify();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
