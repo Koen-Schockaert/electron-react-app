@@ -43,10 +43,3 @@ jobs:
         run: |
           npm exec electron-builder -- --publish always --win --mac --linux
 
-      - name: Publish
-        run: |
-          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            npm run publish
-          else
-            npm run publish -- --prerelease
-          fi
