@@ -174,7 +174,8 @@
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
       "dist",
-      "package.json"
+      "package.json",
+      "assets"
     ],
     "mac": {
       "notarize": false,
@@ -214,7 +215,6 @@
       "category": "Development"
     },
     "directories": {
-      "app": "release/app",
       "buildResources": "assets",
       "output": "release/build"
     },
