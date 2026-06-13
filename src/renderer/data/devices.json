@@ -1,0 +1,21 @@
+[
+  {
+    "id": "luqas",
+    "name": "Luqas",
+    "baseTopics": ["semsa/SN/"],
+    "deviceTopics": [
+      { "topic": "semsa/SN/getState", "message": "" },
+      { "topic": "semsa/SN/getConfig", "message": "" }
+    ]
+  },
+  {
+    "id": "UbieLite",
+    "name": "UbieLite",
+    "baseTopics": ["cloudapp/QBUSMQTTGW/"],
+    "deviceTopics": [
+      { "topic": "home/light/on", "message": "{\"state\":\"on\"}" },
+      { "topic": "cloudapp/QBUSMQTTGW/getConfig", "message": "" },
+      { "topic": "cloudapp/QBUSMQTTGW/UL1/UL7/setState", "message": "{\"id\": \"UL7\",\"properties\": {\"value\": 0},\"type\": \"state\"}}"}
+    ]
+  }
+]

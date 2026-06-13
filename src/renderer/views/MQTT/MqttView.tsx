@@ -12,13 +12,27 @@ import {
   ListItemButton,
   Typography,
   Tooltip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
-
 import { Pause, PlayArrow, ArrowDownward, Clear } from '@mui/icons-material';
 import { Chip, Divider } from '@mui/joy';
 import { useMqtt } from '../../context/MqttContext';
 import type { MqttMessage, TopicTreeItem } from '../../types/global';
 import { TopicTree } from './TopicTreeComponent';
+import devices from '../../data/devices.json';
+import lqsDevices from '../../data/lqs-devices.json';
+
+type DeviceDef = {
+  id: string;
+  name: string;
+  baseTopics: string[];
+  deviceTopics: { topic: string; message?: string }[];
+};
+
+type LqsDevice = { sn: string; customer: string };
 
 const SCROLL_THRESHOLD = 80;
 
@@ -69,6 +83,43 @@ const MqttView: React.FC = () => {
   const [newTopic, setNewTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
   const [publishMessage, setPublishMessage] = useState('');
+
+  // devices from JSON and selection (use DeviceDef so the type warning disappears)
+  const devicesList = (devices as DeviceDef[]);
+  const lqsList = (lqsDevices as LqsDevice[]);
+
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(
+    devicesList.length ? devicesList[0].id : null,
+  );
+  const selectedDevice = devicesList.find((d) => d.id === selectedDeviceId) ?? null;
+
+  // topic template (may contain 'SN' token) selected from device list
+  const [selectedDeviceTopicTpl, setSelectedDeviceTopicTpl] = useState<string | null>(null);
+  // selected serial number for LQ devices
+  const [selectedSN, setSelectedSN] = useState<string | null>(null);
+
+  // when device changes to L uqas, preselect first SN; otherwise clear SN
+  useEffect(() => {
+    if (selectedDeviceId === 'luqas') {
+      if (lqsList.length > 0 && !selectedSN) setSelectedSN(lqsList[0].sn);
+    } else {
+      setSelectedSN(null);
+    }
+    // reset topic template when switching device
+    setSelectedDeviceTopicTpl(null);
+  }, [selectedDeviceId]);
+
+  // compute publishTopic when topic template or selectedSN changes
+  useEffect(() => {
+    if (!selectedDeviceTopicTpl) return;
+    const parts = selectedDeviceTopicTpl.split('/');
+    const resolved = parts.map((seg) => (seg === 'SN' && selectedSN ? selectedSN : seg)).join('/');
+    setPublishTopic(resolved);
+
+    // set default message for the selected template (use template match)
+    const def = selectedDevice?.deviceTopics.find((t) => t.topic === selectedDeviceTopicTpl);
+    if (def && def.message !== undefined) setPublishMessage(def.message);
+  }, [selectedDeviceTopicTpl, selectedSN, selectedDevice]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -472,52 +523,164 @@ const MqttView: React.FC = () => {
           position="relative"
           sx={{ overflow: 'hidden' }}    // ensure only inner area scrolls
         >
-          {/* ---- PUBLISH ---- */}
-          <Box
-            px={2}
-            py={1}
-            borderBottom="1px solid #1e293b"
-            display="flex"
-            gap={1}
-            flexShrink={0}
-          >
-            <input
-              style={{
+          {/* ---- PUBLISH: device/topic (row1), topic editable (row2), message resizable (row3) ---- */}
+          <Box px={2} py={1} borderBottom="1px solid #1e293b" flexShrink={0}>
+            {/* Row 1: device + topic selectors */}
+            <Box display="flex" gap={1} alignItems="center" mb={1}>
+              {/* Device select - outlined so the border is always visible */}
+              <FormControl variant="outlined" size="small" sx={{
+                minWidth: 160,
+                '& .MuiInputLabel-root': { color: '#9ca3af' },
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: '#071028',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#1e293b' },
+                },
+                '& .MuiSelect-select': { color: '#e5e7eb' },
+              }}>
+                <InputLabel id="device-select-label" sx={{ color: '#9ca3af' }}>Device</InputLabel>
+                <Select
+                  labelId="device-select-label"
+                  value={selectedDeviceId ?? ''}
+                  label="Device"
+                  MenuProps={{
+                    PaperProps: { sx: { bgcolor: '#0b1220', color: '#e5e7eb' } },
+                  }}
+                  onChange={(e) => {
+                    const id = e.target.value as string;
+                    setSelectedDeviceId(id);
+                  }}
+                >
+                  {devicesList.map((d) => (
+                    <MenuItem key={d.id} value={d.id} sx={{ color: '#e5e7eb' }}>
+                      {d.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* SN select shown only for Luqas device */}
+              {selectedDeviceId === 'luqas' && (
+                <FormControl variant="outlined" size="small" sx={{
+                  minWidth: 200,
+                  '& .MuiInputLabel-root': { color: '#9ca3af' },
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: '#071028',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#1e293b' },
+                  },
+                  '& .MuiSelect-select': { color: '#e5e7eb' },
+                }}>
+                  <InputLabel id="lqs-sn-select-label" sx={{ color: '#9ca3af' }}>SN</InputLabel>
+                  <Select
+                    labelId="lqs-sn-select-label"
+                    value={selectedSN ?? ''}
+                    label="SN"
+                    MenuProps={{ PaperProps: { sx: { bgcolor: '#0b1220', color: '#e5e7eb' } } }}
+                    onChange={(e) => setSelectedSN(e.target.value as string)}
+                  >
+                    {lqsList.map((l) => (
+                      <MenuItem key={l.sn} value={l.sn} sx={{ color: '#e5e7eb' }}>
+                        {l.sn} — {l.customer}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              {/* Topic template select */}
+              <FormControl variant="outlined" size="small" sx={{
+                minWidth: 280,
                 flex: 1,
-                padding: '4px 8px',
-                background: '#0f172a',
-                color: '#e5e7eb',
-                border: '1px solid #1e293b',
-                borderRadius: 4,
-              }}
-              placeholder="Topic..."
-              value={publishTopic}
-              onChange={(e) => setPublishTopic(e.target.value)}
-            />
-            <input
-              style={{
-                flex: 2,
-                padding: '4px 8px',
-                background: '#0f172a',
-                color: '#e5e7eb',
-                border: '1px solid #1e293b',
-                borderRadius: 4,
-              }}
-              placeholder="Message..."
-              value={publishMessage}
-              onChange={(e) => setPublishMessage(e.target.value)}
-            />
-            <Button
-              size="small"
-              variant="contained"
-              onClick={() => {
-                if (!publishTopic) return; // require topic only
-                window.mqttAPI.publish(publishTopic, publishMessage ?? '');
-                setPublishMessage('');
-              }}
-            >
-              Publish
-            </Button>
+                '& .MuiInputLabel-root': { color: '#9ca3af' },
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: '#071028',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#1e293b' },
+                },
+                '& .MuiSelect-select': { color: '#e5e7eb' },
+              }}>
+                <InputLabel id="device-topic-select-label" sx={{ color: '#9ca3af' }}>Topic</InputLabel>
+                <Select
+                  labelId="device-topic-select-label"
+                  value={selectedDeviceTopicTpl ?? ''}
+                  label="Topic"
+                  MenuProps={{
+                    PaperProps: { sx: { bgcolor: '#0b1220', color: '#e5e7eb' } },
+                  }}
+                  onChange={(e) => {
+                    const tpl = e.target.value as string;
+                    setSelectedDeviceTopicTpl(tpl);
+                  }}
+                >
+                  {(selectedDevice?.baseTopics ?? []).map((b) => {
+                    const display = selectedSN ? b.split('/').map(s => s === 'SN' ? selectedSN : s).join('/') : b;
+                    return (
+                      <MenuItem key={`base-${b}`} value={b} sx={{ color: '#e5e7eb' }}>
+                        {display} (base)
+                      </MenuItem>
+                    );
+                  })}
+                  {(selectedDevice?.deviceTopics ?? []).map((t) => {
+                    const tpl = t.topic;
+                    const display = selectedSN ? tpl.split('/').map(s => s === 'SN' ? selectedSN : s).join('/') : tpl;
+                    return (
+                      <MenuItem key={tpl} value={tpl} sx={{ color: '#e5e7eb' }}>
+                        {display}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+            </Box>
+
+            {/* Row 2: editable topic + publish button */}
+            <Box display="flex" gap={1} alignItems="center" mb={1}>
+              <input
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  background: '#071028',
+                  color: '#e5e7eb',
+                  border: '1px solid #1e293b',
+                  borderRadius: 4,
+                }}
+                placeholder="Topic (editable)"
+                value={publishTopic}
+                onChange={(e) => setPublishTopic(e.target.value)}
+              />
+
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => {
+                  if (!publishTopic) return;
+                  window.mqttAPI.publish(publishTopic, publishMessage ?? '');
+                  // do not clear topic or message after publish
+                }}
+              >
+                Publish
+              </Button>
+            </Box>
+
+            {/* Row 3: resizable message box */}
+            <Box>
+              <textarea
+                value={publishMessage}
+                onChange={(e) => setPublishMessage(e.target.value)}
+                placeholder="Message..."
+                style={{
+                  width: '100%',
+                  minHeight: 40,
+                  maxHeight: 600,
+                  resize: 'vertical',
+                  padding: 10,
+                  background: '#0f172a',
+                  color: '#e5e7eb',
+                  border: '1px solid #1e293b',
+                  borderRadius: 6,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace',
+                  fontSize: 13,
+                }}
+              />
+            </Box>
           </Box>
 
           {/* ---- MESSAGES (SCROLL ONLY HERE) ---- */}

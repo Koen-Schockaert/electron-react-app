@@ -1,0 +1,5 @@
+[
+  { "sn": "B0001", "customer": "ACME Corp" },
+  { "sn": "SN002", "customer": "Beta Ltd" },
+  { "sn": "SN003", "customer": "Gamma BV" }
+]
