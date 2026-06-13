@@ -1,131 +1,191 @@
-import * as React from 'react';
-import Box from '@mui/material/Box';
-import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
+import React from 'react';
+import { Box, IconButton, List, ListItemButton, Typography } from '@mui/material';
+import { ExpandMore, ChevronRight, FiberManualRecord } from '@mui/icons-material';
+import type { TopicTreeItem } from '../../types/global';
 
-import { TopicInfo, TopicTreeItem } from '../../types/global';
-import { TreeItem, treeItemClasses } from '@mui/x-tree-view/TreeItem';
-import { styled, alpha } from '@mui/material/styles';
-
-type TopicTreeProps = {
-  topics: TopicInfo[];
+type Props = {
+  topics: TopicTreeItem[]; // may also be [{ topic: string }]
   selectedTopics: Set<string>;
-  setSelectedTopics: React.Dispatch<React.SetStateAction<Set<string>>>;
+  setSelectedTopics: (s: Set<string>) => void;
+  expandedTopics: Set<string>;
+  setExpandedTopics: (s: Set<string>) => void;
 };
 
-function buildTopicTree(topics: TopicInfo[]): TopicTreeItem[] {
-  const root = new Map<string, any>();
-
-  for (const { topic, count } of topics) {
-    const parts = topic.split('/');
-    let current = root;
-    let path = '';
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      path = path ? `${path}/${part}` : part;
-
-      if (!current.has(part)) {
-        current.set(part, {
-          id: path,
-          label: part,
-          children: new Map<string, any>(),
-        });
-      }
-
-      const node = current.get(part);
-
-      if (i === parts.length - 1) {
-        node.count = count;
-      }
-
-      current = node.children;
-    }
-  }
-
-  const toArray = (map: Map<string, any>): TopicTreeItem[] =>
-    [...map.values()].map((node) => ({
-      id: node.id,
-      label: node.label,
-      count: node.count,
-      children: node.children.size ? toArray(node.children) : undefined,
-    }));
-
-  return toArray(root);
-}
-
-export function TopicTree({
+export const TopicTree: React.FC<Props> = ({
   topics,
   selectedTopics,
   setSelectedTopics,
-}: TopicTreeProps) {
-  const items = React.useMemo(() => buildTopicTree(topics), [topics]);
+  expandedTopics,
+  setExpandedTopics,
+}) => {
+  const buildTreeFromStrings = (items: any[]): TopicTreeItem[] => {
+    const nodesByPath = new Map<string, TopicTreeItem>();
+    const roots: TopicTreeItem[] = [];
 
-  const handleSelectionChange = React.useCallback(
-    (_event: React.SyntheticEvent | null, itemIds: string[]) => {
-      // Let MUI handle Ctrl / Shift logic — just sync
-      setSelectedTopics(new Set(itemIds));
-    },
-    [setSelectedTopics],
-  );
+    for (const it of items) {
+      const topicStr = typeof it === 'string' ? it : it.topic;
+      if (!topicStr) continue;
+      const parts = topicStr.split('/');
 
-  const CustomTreeItem = styled(TreeItem)(({ theme }) => ({
-    color: theme.palette.grey[200],
-
-    [`& .${treeItemClasses.content}`]: {
-      [`& .${treeItemClasses.label}`]: {
-        fontSize: '0.8rem',
-        fontWeight: 500,
-      },
-
-      // 🔹 selected state using data-selected (inside content!)
-      '&[data-selected="true"]': {
-        backgroundColor: 'rgba(255, 255, 255, 0.12)',
-        color: '#fff',
-
-        [`& .${treeItemClasses.label}`]: {
-          color: '#fff',
-          fontWeight: 500,
-        },
-      },
-
-      '&[data-selected="true"]:hover': {
-        backgroundColor: 'rgba(255, 255, 255, 0.18)',
-      },
-    },
-
-    [`& .${treeItemClasses.iconContainer}`]: {
-      ...theme.applyStyles('light', {
-        backgroundColor: alpha(theme.palette.primary.main, 0.25),
-      }),
-      ...theme.applyStyles('dark', {
-        color: theme.palette.primary.contrastText,
-      }),
-    },
-
-    [`& .${treeItemClasses.groupTransition}`]: {
-      borderLeft: `1px dashed ${alpha(theme.palette.text.primary, 0.4)}`,
-    },
-
-    ...theme.applyStyles('light', {
-      color: theme.palette.common.white,
-    }),
-  }));
-
-  return (
-    <Box flex={1} minHeight={0} overflow="auto">
-      <RichTreeView
-        items={items}
-        multiSelect
-        expansionTrigger="content"
-        selectedItems={[...selectedTopics]}
-        onSelectedItemsChange={handleSelectionChange}
-        slots={{ item: CustomTreeItem }}
-        getItemLabel={(item) =>
-          item.count !== undefined
-            ? `${item.label} (${item.count})`
-            : item.label
+      let accum = '';
+      for (let i = 0; i < parts.length; i++) {
+        accum = accum ? `${accum}/${parts[i]}` : parts[i];
+        if (!nodesByPath.has(accum)) {
+          const node: TopicTreeItem = { id: accum, children: [] };
+          nodesByPath.set(accum, node);
+          if (i === 0) {
+            roots.push(node);
+          } else {
+            const parentPath = accum.split('/').slice(0, i).join('/');
+            const parent = nodesByPath.get(parentPath);
+            if (parent) {
+              parent.children = parent.children ?? [];
+              parent.children.push(node);
+            }
+          }
         }
-      />
-    </Box>
-  );
-}
+      }
+    }
+
+    return roots;
+  };
+
+  const tree: TopicTreeItem[] =
+    topics.length === 0
+      ? []
+      : ('topic' in (topics as any)[0] ? buildTreeFromStrings(topics as any[]) : (topics as TopicTreeItem[]));
+
+  // restore selection when tree changes: prefer currently selected if still available,
+  // otherwise try persisted selection from localStorage, otherwise pick the first item.
+  React.useEffect(() => {
+    const available = new Set<string>();
+    const walk = (nodes: TopicTreeItem[]) => {
+      for (const n of nodes) {
+        available.add(n.id);
+        if (n.children && n.children.length) walk(n.children);
+      }
+    };
+    walk(tree);
+
+    // if any current selection is still available — keep it
+    for (const s of selectedTopics) {
+      if (available.has(s)) return;
+    }
+
+    // try persisted selection
+    try {
+      const raw = localStorage.getItem('mqtt.discoveredSelected');
+      if (raw) {
+        const arr = JSON.parse(raw) as string[];
+        const next = new Set<string>();
+        for (const a of arr) if (available.has(a)) next.add(a);
+        if (next.size) {
+          setSelectedTopics(next);
+          return;
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    // fall back: select first available topic (optional)
+    const first = available.values().next();
+    if (!first.done) {
+      setSelectedTopics(new Set([first.value]));
+    }
+  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleExpand = (id: string) => {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const onSelect = (id: string, e: React.MouseEvent) => {
+    const isMulti = e.ctrlKey || e.metaKey;
+    setSelectedTopics((prev) => {
+      const next = new Set(prev);
+      if (isMulti) {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      } else {
+        next.clear();
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const renderNode = (node: TopicTreeItem, level = 0) => {
+    const isExpanded = expandedTopics.has(node.id);
+    const hasChildren = !!(node.children && node.children.length);
+
+    return (
+      <Box key={node.id} pl={level * 1.5}>
+        <ListItemButton
+          onClick={(e) => onSelect(node.id, e)}
+          selected={selectedTopics.has(node.id)}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            px: 0.5,
+            py: 0.4,
+            gap: 0.75,
+            borderRadius: 1,
+            minHeight: 28,
+            color: 'rgba(203,213,225,0.95)',
+            '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' },
+            '&.Mui-selected': { backgroundColor: 'rgba(255,255,255,0.06)' },
+            '& .topic-icon': { color: 'rgba(148,163,184,0.95)' },
+          }}
+        >
+          {hasChildren ? (
+            <IconButton
+              className="topic-icon"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(node.id);
+              }}
+              sx={{
+                width: 24,
+                height: 24,
+                p: 0,
+                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 120ms ease',
+                mr: 0.25,
+              }}
+            >
+              <ChevronRight fontSize="small" />
+            </IconButton>
+          ) : (
+            <FiberManualRecord sx={{ width: 8, height: 8, color: 'rgba(148,163,184,0.6)', ml: '4px' }} />
+          )}
+
+          <Typography
+            fontSize={12}
+            noWrap
+            title={node.id}
+            sx={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              color: selectedTopics.has(node.id) ? 'common.white' : 'rgba(203,213,225,0.95)',
+              fontWeight: selectedTopics.has(node.id) ? 600 : 500,
+            }}
+          >
+            {node.id.includes('/') ? node.id.split('/').pop() : node.id}
+          </Typography>
+        </ListItemButton>
+
+        {hasChildren && isExpanded && (
+          <List disablePadding>{node.children!.map((c) => renderNode(c, level + 1))}</List>
+        )}
+      </Box>
+    );
+  };
+
+  return <List dense disablePadding>{tree.map((t) => renderNode(t))}</List>;
+};

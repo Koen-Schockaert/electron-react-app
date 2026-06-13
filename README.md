@@ -17,6 +17,11 @@ Here the copied message is displayed in a Json editor. We can edit the mesage an
 
 <img src="screenshots/Json.png" width="500" />
 
+## Installation remarks
+App is not signed. Run this for MAC to allow app to run:
+
+xattr -cr /Applications/MqttClient.app
+
 
 ## Disclaimer
 This project is based on the electron react boilerplate.

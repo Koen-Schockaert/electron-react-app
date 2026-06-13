@@ -41,9 +41,27 @@ const MqttView: React.FC = () => {
   const [subscribedSelectedTopics, setSubscibedSelectedTopics] = useState<
     Set<string>
   >(new Set());
-  const [discoveredSelectedTopics, setDiscoveredSelectedTopics] = useState<
-    Set<string>
-  >(new Set());
+  const [discoveredSelectedTopics, setDiscoveredSelectedTopics] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('mqtt.discoveredSelected');
+      if (raw) return new Set(JSON.parse(raw));
+    } catch (e) {
+      // ignore
+    }
+    return new Set();
+  });
+
+  // persist discovered selection so it can be restored when returning to this view
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'mqtt.discoveredSelected',
+        JSON.stringify([...discoveredSelectedTopics]),
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  }, [discoveredSelectedTopics]);
 
   const [paused, setPaused] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -54,6 +72,24 @@ const MqttView: React.FC = () => {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('mqttTopicTreeExpanded');
+      if (raw) return new Set(JSON.parse(raw));
+    } catch (e) {
+      // ignore
+    }
+    return new Set();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mqttTopicTreeExpanded', JSON.stringify([...expandedTopics]));
+    } catch (e) {
+      // ignore
+    }
+  }, [expandedTopics]);
 
   /* ================= DEBUG LOG ================= */
   useEffect(() => {
@@ -107,7 +143,7 @@ const MqttView: React.FC = () => {
   const filteredMessages = useMemo(() => {
     if (selectedFilters.length === 0) return messages;
 
-    if (discoveredSelectedTopics.size >> 0) {
+    if (discoveredSelectedTopics.size > 0) {
       return messages.filter((m) =>
         [...discoveredSelectedTopics].some(
           (topic) => m.topic === topic || m.topic.startsWith(topic + '/'),
@@ -170,8 +206,17 @@ const MqttView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (discoveredSelectedTopics.size >> 0) {
+    if (discoveredSelectedTopics.size > 0) {
       setSelectedTopicsA(discoveredSelectedTopics);
+    }
+  }, [discoveredSelectedTopics]);
+
+  // keep the publish topic input in sync with discovered selection:
+  useEffect(() => {
+    if (discoveredSelectedTopics.size > 0) {
+      // pick the first selected topic to populate the input
+      const topic = [...discoveredSelectedTopics][0];
+      setPublishTopic(topic);
     }
   }, [discoveredSelectedTopics]);
 
@@ -221,15 +266,18 @@ const MqttView: React.FC = () => {
       }
     >
       {/* ===== BODY ===== */}
-      <Box display="flex" flex={1} minHeight={0} overflow="hidden">
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden', overflowX: 'hidden' }}>
         {/* ================= LEFT ================= */}
         <Box
           width={300}
+          minWidth={300}
+          flexShrink={0}                 // <-- prevent the left pane from shrinking / being scrolled off-screen
           display="flex"
           flexDirection="column"
           minHeight={0}
           bgcolor="#020617"
           borderRight="1px solid #1e293b"
+          sx={{ position: 'relative', zIndex: 1 }}
         >
           {/* ---- SUBSCRIPTIONS ---- */}
           <Box display="flex" flexDirection="column" flex={1} minHeight={0}>
@@ -370,6 +418,8 @@ const MqttView: React.FC = () => {
                   topics={discoveredTopics}
                   selectedTopics={discoveredSelectedTopics}
                   setSelectedTopics={setDiscoveredSelectedTopics}
+                  expandedTopics={expandedTopics}
+                  setExpandedTopics={setExpandedTopics}
                 />
               </Box>
             </Box>
@@ -415,10 +465,12 @@ const MqttView: React.FC = () => {
         {/* ================= RIGHT ================= */}
         <Box
           flex={1}
+          minWidth={0}                   // allow the right pane to shrink without causing the whole layout to create a horizontal scrollbar
           display="flex"
           flexDirection="column"
           minHeight={0}
           position="relative"
+          sx={{ overflow: 'hidden' }}    // ensure only inner area scrolls
         >
           {/* ---- PUBLISH ---- */}
           <Box
@@ -459,8 +511,8 @@ const MqttView: React.FC = () => {
               size="small"
               variant="contained"
               onClick={() => {
-                if (!publishTopic || !publishMessage) return;
-                window.mqttAPI.publish(publishTopic, publishMessage);
+                if (!publishTopic) return; // require topic only
+                window.mqttAPI.publish(publishTopic, publishMessage ?? '');
                 setPublishMessage('');
               }}
             >
@@ -474,9 +526,9 @@ const MqttView: React.FC = () => {
             onScroll={onScroll}
             flex={1}
             minHeight={0}
-            overflow="auto"
             px={2}
             py={1}
+            sx={{ width: '100%', overflowY: 'auto', overflowX: 'hidden' }} // vertical scroll only here
           >
             {filteredMessages.map((m: MqttMessage, idx: number) => (
               <Box
@@ -490,7 +542,11 @@ const MqttView: React.FC = () => {
                 <Typography fontSize={12} fontWeight={600}>
                   {m.topic}
                 </Typography>
-                <Typography fontSize={12} color="gray" whiteSpace="pre-wrap">
+                <Typography
+                  fontSize={12}
+                  color="gray"
+                  sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                >
                   {m.message}
                 </Typography>
 
