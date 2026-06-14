@@ -42,6 +42,13 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Package Electron app (create artifacts)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # create artifacts locally (don't publish yet)
+          npx electron-builder --publish=never
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -51,7 +58,7 @@ jobs:
             out/**
             dist/**
 
-      - name: Build & publish Electron app
+      - name: Publish Electron app (attach artifacts to GitHub release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
