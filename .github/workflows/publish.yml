@@ -98,9 +98,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # get upload URL from create-release output and remove the template part "{?name,label}"
+          # get upload URL and remove template part, strip CR/LF
           upload_url_raw="${{ steps.create_release.outputs.upload_url }}"
-          upload_url="${upload_url_raw%\{*}"
+          upload_url="$(echo "${upload_url_raw}" | sed 's/{.*$//' | tr -d '\r\n')"
           if [ -z "$upload_url" ]; then
             echo "No upload_url from create-release; aborting."
             exit 1
@@ -117,12 +117,18 @@ jobs:
           for f in "${files[@]}"; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
-            echo "Uploading $f as $name"
-            # use multipart/form-data upload (curl -F) so GitHub accepts the asset
-            curl -sS -X POST \
+            echo "Preparing to upload $f as $name"
+
+            # URL-encode filename using Python (available on GH runners)
+            encoded_name=$(python -c "import sys,urllib.parse as u; print(u.quote(sys.argv[1]))" "$name")
+            echo "Encoded name: $encoded_name"
+
+            # multipart/form-data upload (GitHub expects a form upload)
+            echo "Uploading $name..."
+            curl -S -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
               -F "file=@${f}" \
-              "${upload_url}?name=${name}"
+              "${upload_url}?name=${encoded_name}"
             status=$?
             if [ $status -ne 0 ]; then
               echo "Upload failed for $name (curl exit $status)"
