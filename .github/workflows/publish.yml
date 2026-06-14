@@ -53,8 +53,7 @@ jobs:
           echo "Packaging app with version $VERSION"
           npm run package -- --config.extraMetadata.version=$VERSION
 
-      - name: Debug: list release/build
-        if: always()
+      - name: list release/build
         run: |
           echo "Listing release/build contents for ${RUNNER_OS}"
           ls -la release/build || true
