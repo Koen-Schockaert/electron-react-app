@@ -73,10 +73,14 @@ jobs:
       - name: Show downloaded files
         run: ls -la release/build || true
 
+      - name: Compute release tag
+        id: tag
+        run: echo "TAG=v$(node -p \"require('./package.json').version\")" >> $GITHUB_ENV
+
       - name: Create or update GitHub Release and upload assets
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}    # when workflow triggered by tag, this is the tag; adjust if you compute tag differently
+          tag: ${{ env.TAG }}
           files: release/build/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
