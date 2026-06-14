@@ -43,11 +43,13 @@ jobs:
         run: npm run build
 
       - name: Package Electron app (create artifacts)
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # create artifacts locally (don't publish yet)
-          npx electron-builder --publish=never
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Packaging with version $VERSION"
+          npx electron-builder --publish=never --config.extraMetadata.version=$VERSION
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
