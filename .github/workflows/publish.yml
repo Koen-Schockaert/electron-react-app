@@ -98,22 +98,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          upload_url="${{ steps.create_release.outputs.upload_url }}"
-          echo "Upload URL: $upload_url"
+          # get upload URL from create-release output and remove the template part "{?name,label}"
+          upload_url_raw="${{ steps.create_release.outputs.upload_url }}"
+          upload_url="${upload_url_raw%\{*}"
+          if [ -z "$upload_url" ]; then
+            echo "No upload_url from create-release; aborting."
+            exit 1
+          fi
+          echo "Base upload URL: $upload_url"
+
           shopt -s globstar nullglob
           files=(release/build/**/*)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No files found to upload"
             exit 0
           fi
+
           for f in "${files[@]}"; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
-            mime=$(file --brief --mime-type "$f" 2>/dev/null || echo "application/octet-stream")
-            echo "Uploading $f as $name (mime: $mime)"
+            echo "Uploading $f as $name"
+            # use multipart/form-data upload (curl -F) so GitHub accepts the asset
             curl -sS -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Content-Type: $mime" \
-              --data-binary @"$f" \
+              -F "file=@${f}" \
               "${upload_url}?name=${name}"
+            status=$?
+            if [ $status -ne 0 ]; then
+              echo "Upload failed for $name (curl exit $status)"
+              exit $status
+            fi
           done
