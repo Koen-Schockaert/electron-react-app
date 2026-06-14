@@ -43,6 +43,7 @@ jobs:
         run: npm run build
 
       - name: Package Electron app (create artifacts)
+        shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Packaging with version $VERSION"
