@@ -229,6 +229,10 @@
       "releaseType": "release"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Koen-Schockaert/electron-react-app.git"
+  },
   "devEngines": {
     "runtime": {
       "name": "node",
