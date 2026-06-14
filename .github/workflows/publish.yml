@@ -2,10 +2,12 @@ name: Build and Release
 
 on:
   push:
-    branches:
-      - main
-      - beta
-      - alpha
+    #branches:
+    #  - main
+    #  - beta
+    #  - alpha
+    tags:
+      - 'v*'
       
 permissions:
   contents: write
