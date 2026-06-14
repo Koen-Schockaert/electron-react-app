@@ -74,3 +74,15 @@ contextBridge.exposeInMainWorld('mqttAPI', {
   onMessage: (callback: Parameters<MqttAPI['onMessage']>[0]) =>
     ipcRenderer.on('mqtt/message', (_event, data) => callback(data)),
 });
+
+contextBridge.exposeInMainWorld('filesAPI', {
+  writeFile: (relativeName: string, content: string) => ipcRenderer.invoke('write-file', relativeName, content),
+  readFile: (relativeName: string) => ipcRenderer.invoke('read-file', relativeName),
+  onFileChanged: (cb: (filename: string) => void) => {
+    const listener = (_evt: any, filename: string) => cb(filename);
+    ipcRenderer.on('file-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('file-changed', listener);
+    };
+  },
+});

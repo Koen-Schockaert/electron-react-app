@@ -3,9 +3,10 @@ import { useState } from 'react';
 import SettingsTopBar from './SettingsTopBar';
 import MqttSettings from './subviews/MqttSettings';
 import OtherSettings from './subviews/OtherSettings';
+import FileEditor from './subviews/FileEditor';
 import PageLayout from '../../layout/PageLaout';
 
-type SettingsTab = 'mqtt' | 'other';
+type SettingsTab = 'mqtt' | 'other' | 'files';
 
 export default function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('mqtt');
@@ -16,6 +17,8 @@ export default function SettingsView() {
         return <MqttSettings />;
       case 'other':
         return <OtherSettings />;
+      case 'files':
+        return <FileEditor />;
       default:
         return null;
     }

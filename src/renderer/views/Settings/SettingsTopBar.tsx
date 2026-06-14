@@ -1,8 +1,9 @@
+import React from 'react';
 import { Box, Button } from '@mui/joy';
 
 type Props = {
-  activeTab: 'mqtt' | 'other';
-  onChangeTab: (tab: 'mqtt' | 'other') => void;
+  activeTab: 'mqtt' | 'other' | 'files';
+  onChangeTab: (t: 'mqtt' | 'other' | 'files') => void;
 };
 
 export default function SettingsTopBar({ activeTab, onChangeTab }: Props) {
@@ -11,7 +12,7 @@ export default function SettingsTopBar({ activeTab, onChangeTab }: Props) {
       sx={{
         display: 'flex',
         gap: 1,
-        p: 1,
+        p: 2,
         bgcolor: '#020617', // dark background like MQTTView header
         borderBottom: '1px solid #1e293b', // subtle divider
       }}
@@ -34,6 +35,16 @@ export default function SettingsTopBar({ activeTab, onChangeTab }: Props) {
         sx={{ color: '#e5e7eb' }}
       >
         Other
+      </Button>
+
+      <Button
+        size="sm"
+        variant={activeTab === 'files' ? 'solid' : 'outlined'}
+        color={activeTab === 'files' ? 'primary' : 'neutral'}
+        onClick={() => onChangeTab('files')}
+        sx={{ color: '#e5e7eb' }}
+      >
+        Files
       </Button>
     </Box>
   );

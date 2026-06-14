@@ -108,7 +108,14 @@ export const MqttProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const handleMessage = (msg: MqttMessage) => {
       console.log('MQTT Context received message:', msg); // 🔥 add debug log
-      addMessage(msg);
+      // wanneer een nieuw bericht binnenkomt, maak je het zo aan:
+      const incoming = {
+        topic: msg.topic,
+        message: msg.message,
+        ts: Date.now(), // <-- voeg timestamp toe
+        // ... eventuele andere velden
+      };
+      setMessages((prev) => [...prev, incoming]);
     };
     window.mqttAPI.onMessage(handleMessage);
 

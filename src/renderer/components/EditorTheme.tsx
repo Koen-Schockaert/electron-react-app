@@ -50,10 +50,22 @@ const darkEditorTheme = EditorView.theme(
     /* Selection */
     '.cm-selectionBackground': {
       backgroundColor: 'rgba(99,102,241,0.25) !important',
+      color: '#000 !important', // ensure selected text remains readable
     },
 
     '&.cm-focused .cm-selectionBackground': {
       backgroundColor: 'rgba(99,102,241,0.35) !important',
+    },
+
+    /* also style native selection inside the editor content */
+    '.cm-content ::selection': {
+      backgroundColor: '#334155',
+      color: '#e5e7eb',
+    },
+    /* ensure active selection layer used by CM is clearly visible on dark bg */
+    '.cm-selectionBackground, .cm-activeSelection': {
+      backgroundColor: 'rgba(51,65,85,0.7) !important',
+      color: '#e5e7eb !important',
     },
 
     /* Cursor */

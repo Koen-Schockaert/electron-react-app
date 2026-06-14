@@ -9,6 +9,7 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
+import fs from 'fs/promises';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -152,6 +153,77 @@ ipcMain.handle(
     return true;
   },
 );
+
+// safe write handler — writes to app userData/data/<basename>
+// works for dev and packaged apps (userData is writable in both)
+ipcMain.handle('write-file', async (_evt, relativeName: string, content: string) => {
+  try {
+    const safeName = path.basename(relativeName);
+    const userDataDir = path.join(app.getPath('userData'), 'data');
+    await fs.mkdir(userDataDir, { recursive: true });
+    const full = path.join(userDataDir, safeName);
+    await fs.writeFile(full, content, 'utf8');
+    console.log('write-file: wrote', full);
+
+    // notify renderer(s)
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('file-changed', safeName);
+      }
+    } catch (e) {
+      console.warn('write-file: failed to send file-changed event', e);
+    }
+
+    return { ok: true, path: full };
+  } catch (err: any) {
+    console.error('write-file error', err);
+    return { ok: false, error: err?.message ?? String(err) };
+  }
+});
+
+// read handler — prefer userData copy, fallback to bundled source
+ipcMain.handle('read-file', async (_evt, relativeName: string) => {
+  try {
+    const safeName = path.basename(relativeName);
+    const userDataDir = path.join(app.getPath('userData'), 'data');
+    const userPath = path.join(userDataDir, safeName);
+
+    // try userData copy first
+    try {
+      const content = await fs.readFile(userPath, 'utf8');
+      console.log('read-file: loaded from userData', userPath);
+      return { ok: true, content, source: 'user' };
+    } catch {
+      // ignore, try bundled
+    }
+
+    // fallback: packaged/bundled file inside app
+    // in development, app.getAppPath() usually points to project root; in prod it points to resources
+    const bundledPath = path.join(app.getAppPath(), 'src', 'renderer', 'data', safeName);
+    try {
+      const content = await fs.readFile(bundledPath, 'utf8');
+      console.log('read-file: loaded bundled', bundledPath);
+      return { ok: true, content, source: 'bundled' };
+    } catch (e) {
+      console.warn('read-file: bundled not found', bundledPath, e);
+    }
+
+    // last resort: attempt to read from resources path (PACKAGED)
+    try {
+      const resourcesBundled = path.join(process.resourcesPath, 'app', 'renderer', 'data', safeName);
+      const content = await fs.readFile(resourcesBundled, 'utf8');
+      console.log('read-file: loaded resources', resourcesBundled);
+      return { ok: true, content, source: 'resources' };
+    } catch (e) {
+      console.warn('read-file: resources fallback not found', e);
+    }
+
+    return { ok: false, error: 'file not found' };
+  } catch (err: any) {
+    console.error('read-file error', err);
+    return { ok: false, error: err?.message ?? String(err) };
+  }
+});
 
 // 🔥 logging (important for debugging updates)
 autoUpdater.logger = log;

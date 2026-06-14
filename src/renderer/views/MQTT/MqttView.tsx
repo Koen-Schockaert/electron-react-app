@@ -1,5 +1,5 @@
 // src/renderer/views/MqttView.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../layout/PageLaout';
 
@@ -22,8 +22,8 @@ import { Chip, Divider } from '@mui/joy';
 import { useMqtt } from '../../context/MqttContext';
 import type { MqttMessage, TopicTreeItem } from '../../types/global';
 import { TopicTree } from './TopicTreeComponent';
-import devices from '../../data/devices.json';
-import lqsDevices from '../../data/lqs-devices.json';
+import devicesBundled from '../../data/devices.json';
+import lqsDevicesBundled from '../../data/lqs-devices.json';
 
 type DeviceDef = {
   id: string;
@@ -51,6 +51,9 @@ const MqttView: React.FC = () => {
   } = useMqtt();
 
   const navigate = useNavigate();
+  // DOM refs used for auto-scrolling and scroll handling
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const [subscribedSelectedTopics, setSubscibedSelectedTopics] = useState<
     Set<string>
@@ -84,45 +87,118 @@ const MqttView: React.FC = () => {
   const [publishTopic, setPublishTopic] = useState('');
   const [publishMessage, setPublishMessage] = useState('');
 
-  // devices from JSON and selection (use DeviceDef so the type warning disappears)
-  const devicesList = (devices as DeviceDef[]);
-  const lqsList = (lqsDevices as LqsDevice[]);
+  // devices and lqs list - load from filesAPI if available, fallback to bundled
+  const [devices, setDevices] = useState<DeviceDef[]>(() => (devicesBundled as DeviceDef[]));
+  const [lqsList, setLqsList] = useState<LqsDevice[]>(() => (lqsDevicesBundled as LqsDevice[]));
 
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(
-    devicesList.length ? devicesList[0].id : null,
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(() =>
+    (devicesBundled && devicesBundled.length) ? devicesBundled[0].id : null,
   );
-  const selectedDevice = devicesList.find((d) => d.id === selectedDeviceId) ?? null;
 
-  // topic template (may contain 'SN' token) selected from device list
-  const [selectedDeviceTopicTpl, setSelectedDeviceTopicTpl] = useState<string | null>(null);
-  // selected serial number for LQ devices
-  const [selectedSN, setSelectedSN] = useState<string | null>(null);
+  // derived selected device and related UI state
+  const selectedDevice = useMemo(
+    () => devices.find((d) => d.id === selectedDeviceId) ?? null,
+    [devices, selectedDeviceId],
+  );
 
-  // when device changes to L uqas, preselect first SN; otherwise clear SN
+  // SN selector for LQ S device (default to first in list if available)
+  const [selectedSN, setSelectedSN] = useState<string | null>(() =>
+    lqsList && lqsList.length ? lqsList[0].sn : null,
+  );
   useEffect(() => {
-    if (selectedDeviceId === 'luqas') {
-      if (lqsList.length > 0 && !selectedSN) setSelectedSN(lqsList[0].sn);
-    } else {
-      setSelectedSN(null);
+    if (selectedDeviceId === 'luqas' && lqsList.length && !selectedSN) {
+      setSelectedSN(lqsList[0].sn);
     }
-    // reset topic template when switching device
-    setSelectedDeviceTopicTpl(null);
-  }, [selectedDeviceId]);
+  }, [selectedDeviceId, lqsList, selectedSN]);
 
-  // compute publishTopic when topic template or selectedSN changes
+  // selected topic template for the device (baseTopic or device topic)
+  const [selectedDeviceTopicTpl, setSelectedDeviceTopicTpl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selectedDevice) {
+      setSelectedDeviceTopicTpl(null);
+      return;
+    }
+    const defaultTpl =
+      selectedDevice.deviceTopics?.[0]?.topic ?? selectedDevice.baseTopics?.[0] ?? null;
+    setSelectedDeviceTopicTpl((prev) =>
+      prev && (selectedDevice.baseTopics?.includes(prev) || selectedDevice.deviceTopics?.some((t) => t.topic === prev))
+        ? prev
+        : defaultTpl,
+    );
+  }, [selectedDevice]);
+
+  // when a device/topic template or SN is selected, populate the publishTopic input
   useEffect(() => {
     if (!selectedDeviceTopicTpl) return;
-    const parts = selectedDeviceTopicTpl.split('/');
-    const resolved = parts.map((seg) => (seg === 'SN' && selectedSN ? selectedSN : seg)).join('/');
+    const resolved = selectedSN
+      ? selectedDeviceTopicTpl.split('/').map((s) => (s === 'SN' ? selectedSN : s)).join('/')
+      : selectedDeviceTopicTpl;
     setPublishTopic(resolved);
+  }, [selectedDeviceTopicTpl, selectedSN]);
 
-    // set default message for the selected template (use template match)
-    const def = selectedDevice?.deviceTopics.find((t) => t.topic === selectedDeviceTopicTpl);
-    if (def && def.message !== undefined) setPublishMessage(def.message);
-  }, [selectedDeviceTopicTpl, selectedSN, selectedDevice]);
+  // also set publishMessage when a device topic template is chosen (use template.message if present)
+  useEffect(() => {
+    if (!selectedDeviceTopicTpl) return;
+    const tpl = selectedDeviceTopicTpl;
+    const found = selectedDevice?.deviceTopics?.find((t) => t.topic === tpl);
+    if (found && typeof found.message !== 'undefined') {
+      setPublishMessage(found.message ?? '');
+    } else {
+      // clear message for base topics or when no template message provided
+      setPublishMessage('');
+    }
+  }, [selectedDeviceTopicTpl, selectedDevice]);
+  
+  // load from userData overrides (filesAPI) and subscribe to changes
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
 
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+    const loadFiles = async () => {
+      try {
+        // try devices.json
+        if ((window as any).filesAPI?.readFile) {
+          const dRes = await (window as any).filesAPI.readFile('devices.json');
+          if (dRes && dRes.ok) {
+            const parsed = JSON.parse(dRes.content);
+            setDevices(parsed);
+            // ensure selectedDeviceId remains valid
+            setSelectedDeviceId((prev) => (parsed.length && !parsed.find((p: any) => p.id === prev) ? parsed[0].id : prev ?? (parsed[0]?.id ?? null)));
+          } else {
+            setDevices(devicesBundled as DeviceDef[]);
+          }
+
+          const lRes = await (window as any).filesAPI.readFile('lqs-devices.json');
+          if (lRes && lRes.ok) {
+            setLqsList(JSON.parse(lRes.content));
+          } else {
+            setLqsList(lqsDevicesBundled as LqsDevice[]);
+          }
+        } else {
+          // no filesAPI: use bundled
+          setDevices(devicesBundled as DeviceDef[]);
+          setLqsList(lqsDevicesBundled as LqsDevice[]);
+        }
+      } catch (err) {
+        console.error('MqttView: loadFiles error', err);
+        setDevices(devicesBundled as DeviceDef[]);
+        setLqsList(lqsDevicesBundled as LqsDevice[]);
+      }
+    };
+
+    loadFiles();
+
+    if ((window as any).filesAPI?.onFileChanged) {
+      unsub = (window as any).filesAPI.onFileChanged((filename: string) => {
+        if (filename === 'devices.json' || filename === 'lqs-devices.json') {
+          loadFiles();
+        }
+      });
+    }
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
 
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(() => {
     try {
@@ -550,7 +626,7 @@ const MqttView: React.FC = () => {
                     setSelectedDeviceId(id);
                   }}
                 >
-                  {devicesList.map((d) => (
+                  {devices.map((d) => (
                     <MenuItem key={d.id} value={d.id} sx={{ color: '#e5e7eb' }}>
                       {d.name}
                     </MenuItem>
@@ -620,13 +696,15 @@ const MqttView: React.FC = () => {
                   })}
                   {(selectedDevice?.deviceTopics ?? []).map((t) => {
                     const tpl = t.topic;
-                    const display = selectedSN ? tpl.split('/').map(s => s === 'SN' ? selectedSN : s).join('/') : tpl;
-                    return (
-                      <MenuItem key={tpl} value={tpl} sx={{ color: '#e5e7eb' }}>
-                        {display}
-                      </MenuItem>
-                    );
-                  })}
+                    const display = selectedSN
+                      ? tpl.split('/').map((s) => (s === 'SN' ? selectedSN : s)).join('/')
+                      : tpl;
+                     return (
+                       <MenuItem key={tpl} value={tpl} sx={{ color: '#e5e7eb' }}>
+                         {display}
+                       </MenuItem>
+                     );
+                   })}
                 </Select>
               </FormControl>
             </Box>
@@ -702,9 +780,32 @@ const MqttView: React.FC = () => {
                 bgcolor="#020617"
                 border="1px solid #1e293b"
               >
-                <Typography fontSize={12} fontWeight={600}>
-                  {m.topic}
-                </Typography>
+                {/* header: topic + received time */}
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
+                  <Typography
+                    fontSize={12}
+                    fontWeight={600}
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {m.topic}
+                  </Typography>
+
+                  <Typography
+                    fontSize={11}
+                    color="gray"
+                    sx={{ ml: 1, whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {/* fallback to now if no timestamp present */}
+                    {new Date((m as any).ts ?? (m as any).timestamp ?? Date.now()).toLocaleString()}
+                  </Typography>
+                </Box>
+
                 <Typography
                   fontSize={12}
                   color="gray"
