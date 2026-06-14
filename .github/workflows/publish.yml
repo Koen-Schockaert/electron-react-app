@@ -75,7 +75,10 @@ jobs:
 
       - name: Compute release tag
         id: tag
-        run: echo "TAG=v$(node -p \"require('./package.json').version\")" >> $GITHUB_ENV
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "TAG=v$VERSION" >> $GITHUB_ENV
 
       - name: Create or update GitHub Release and upload assets
         uses: ncipollo/release-action@v1
