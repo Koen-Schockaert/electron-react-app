@@ -43,9 +43,6 @@ jobs:
         run: npm run build
 
       - name: Package Electron app (create artifacts)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Packaging with version $VERSION"
@@ -55,13 +52,31 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: electron-build-${{ matrix.os }}
-          path: |
-            release/build/**
-            out/**
-            dist/**
+          path: release/build/**
 
-      - name: Publish Electron app (attach artifacts to GitHub release)
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release/build/
+
+      - name: Show downloaded files
+        run: ls -la release/build || true
+
+      - name: Create or update GitHub Release and upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}    # when workflow triggered by tag, this is the tag; adjust if you compute tag differently
+          files: release/build/**
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --publish=always
