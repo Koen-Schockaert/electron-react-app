@@ -82,9 +82,38 @@ jobs:
           echo "TAG=v$VERSION" >> $GITHUB_ENV
 
       - name: Create or update GitHub Release and upload assets
-        uses: ncipollo/release-action@v1
+        id: create_release
+        uses: actions/create-release@v1
         with:
-          tag: ${{ env.TAG }}
-          files: release/build/**
+          tag_name: ${{ env.TAG }}
+          release_name: ${{ env.TAG }}
+          body: "Automated release for ${{ env.TAG }}"
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets (recursive)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          upload_url="${{ steps.create_release.outputs.upload_url }}"
+          echo "Upload URL: $upload_url"
+          shopt -s globstar nullglob
+          files=(release/build/**/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No files found to upload"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            mime=$(file --brief --mime-type "$f" 2>/dev/null || echo "application/octet-stream")
+            echo "Uploading $f as $name (mime: $mime)"
+            curl -sS -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: $mime" \
+              --data-binary @"$f" \
+              "${upload_url}?name=${name}"
+          done
