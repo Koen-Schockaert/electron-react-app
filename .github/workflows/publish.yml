@@ -107,24 +107,28 @@ jobs:
           fi
           echo "Base upload URL: $upload_url"
 
-          shopt -s globstar nullglob
+          shopt -s globstar nullglob nocasematch
           files=(release/build/**/*)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No files found to upload"
             exit 0
           fi
 
+          # Only upload actual build artifacts. adjust extensions as needed.
           for f in "${files[@]}"; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
-            echo "Preparing to upload $f as $name"
 
-            # URL-encode filename using Python (available on GH runners)
+            # whitelist common build artifact extensions (case-insensitive)
+            if [[ ! "$name" =~ \.(dmg|zip|exe|msi|appimage|deb|rpm|snap|pkg|tar\.gz|tar\.xz|7z|msix|msi\.zip|AppImage|AppImage\.zip|exe\.zip|apk|blockmap)$ ]]; then
+              echo "Skipping $name (not a build artifact)"
+              continue
+            fi
+
+            echo "Preparing to upload build file: $f"
             encoded_name=$(python -c "import sys,urllib.parse as u; print(u.quote(sys.argv[1]))" "$name")
-            echo "Encoded name: $encoded_name"
 
-            # multipart/form-data upload (GitHub expects a form upload)
-            echo "Uploading $name..."
+            # multipart/form-data upload
             curl -S -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
               -F "file=@${f}" \
