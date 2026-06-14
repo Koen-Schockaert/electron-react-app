@@ -1,100 +1,58 @@
-name: Release
+name: Build and Release
 
 on:
   push:
-    branches:
-      - main
-      - alpha
-      - beta
-
+    #branches:
+    #  - main
+    #  - beta
+    #  - alpha
+    tags:
+      - 'v*'
+      
 permissions:
   contents: write
   packages: write
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    if: ${{ github.repository_owner == 'Koen-Schockaert' }}
+
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repo
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Get version (fallback to package.json)
-        shell: bash
-        run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v$(node -p \"require('./package.json').version\")")
-          VERSION=${TAG#v}
-          echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Using tag: $TAG / version: $VERSION"
-
-      - name: Clean previous builds
-        shell: bash
-        run: rm -rf release/build/* || true
-
       - name: Build app
         run: npm run build
 
-      - name: Package Electron app
-        shell: bash
-        run: |
-          echo "Packaging app with version $VERSION"
-          npm run package -- --config.extraMetadata.version=$VERSION
-
-      - name: list release/build
-        run: |
-          echo "Listing release/build contents for ${RUNNER_OS}"
-          ls -la release/build || true
-
-      - name: Upload platform artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.os }}
-          path: release/build/*
+          name: electron-build-${{ matrix.os }}
+          path: |
+            release/build/**
+            out/**
+            dist/**
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release/build/
-
-      - name: Show downloaded files
-        run: ls -la release/build || true
-
-      - name: Ensure TAG env (fallback to package.json)
-        shell: bash
-        run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v$(node -p \"require('./package.json').version\")")
-          echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "Using TAG=$TAG"
-
-      - name: Create GitHub Release and upload assets
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ env.TAG }}
-          files: release/build/**
+      - name: Build & publish Electron app
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --publish=always
