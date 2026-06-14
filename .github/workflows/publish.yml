@@ -1,46 +1,100 @@
-name: Build and Release
+name: Release
 
 on:
   push:
-    #branches:
-    #  - main
-    #  - beta
-    #  - alpha
-    tags:
-      - 'v*'
-      
-permissions:
-  contents: write
-  packages: write
+    branches:
+      - main
+      - alpha
+      - beta
 
 jobs:
   build:
-    if: ${{ github.repository_owner == 'Koen-Schockaert' }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-
     runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    permissions:
+      contents: write
+      packages: write
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      # 1️⃣ Checkout full history to get tags
+      - uses: actions/checkout@v5
         with:
-          node-version: 22
+          fetch-depth: 0
+
+      # 2️⃣ Setup Node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      # 3️⃣ Install dependencies
+      - run: npm ci
 
+      # 4️⃣ Get version from latest tag or fallback
+      - name: Get version from tag
+        shell: bash
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          VERSION=${TAG#v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Next version: $VERSION"
+
+      # 5️⃣ Clean previous builds
+      - name: Clean previous build
+        shell: bash
+        run: rm -rf release/build/* || true
+
+      # 6️⃣ Build React app
       - name: Build app
         run: npm run build
 
-      - name: Build & publish Electron app
+      # 7️⃣ Package Electron app with correct version
+      - name: Package Electron app
+        shell: bash
+        run: |
+          echo "Packaging app with version $VERSION"
+          npm run package -- --config.extraMetadata.version=$VERSION
+
+      # 8️⃣ Upload artifacts per platform
+      - name: Upload platform artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: release/build/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      # 1️⃣ Checkout
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # 2️⃣ Setup Node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 3️⃣ Install dependencies
+      - run: npm ci
+
+      # 4️⃣ Download all build artifacts
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release/build/
+
+      # 5️⃣ Create GitHub Release (semantic-release or custom)
+      - name: Release with semantic-release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --publish always
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
