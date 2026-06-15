@@ -30,5 +30,6 @@ https://github.com/electron-react-boilerplate/electron-react-boilerplate
 
 
 Release info:
-Commit to branch (main)
+Commit & push to branch (main)
 npm version patch -m "Release v%s"
+Commit & push to branch (main)

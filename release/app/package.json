@@ -1,6 +1,6 @@
 {
   "name": "mqtt-client",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A mqtt client with json editor",
   "license": "MIT",
   "author": {
