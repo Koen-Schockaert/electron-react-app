@@ -30,11 +30,4 @@ https://github.com/electron-react-boilerplate/electron-react-boilerplate
 
 
 Release info:
-//change version in package.json 
-commit and push everything
-
-Skip this: and release/app/package.json
 npm version patch -m "Release v%s"
-commit and push everything
-Skip this: git tag -a v1.1.20 -m "Release v1.1.20"
-git push origin "vx.x.x"

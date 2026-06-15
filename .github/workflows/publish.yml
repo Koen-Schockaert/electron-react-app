@@ -43,6 +43,7 @@ jobs:
       - name: Build & publish Electron app (sync version + force)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           # ensure release/app/package.json matches root version (optional but recommended)
           if [ -f release/app/package.json ]; then
