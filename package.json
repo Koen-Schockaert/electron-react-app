@@ -2,7 +2,7 @@
   "name": "mqtt-client",
   "description": "A mqtt client with json editor",
   "license": "MIT",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "./.erb/dll/main.bundle.dev.js",
   "scripts": {
     "postversion": "node ./scripts/sync-app-version.js",
