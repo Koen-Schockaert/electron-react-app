@@ -40,10 +40,16 @@ jobs:
       - name: Build app
         run: npm run build
 
-      - name: Build & publish Electron app
+      - name: Build & publish Electron app (sync version + force)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --publish always
+        run: |
+          # ensure release/app/package.json matches root version (optional but recommended)
+          if [ -f release/app/package.json ]; then
+            node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('package.json'));const p='release/app/package.json';let a=JSON.parse(fs.readFileSync(p));if(a.version!==r.version){a.version=r.version;fs.writeFileSync(p,JSON.stringify(a,null,2)+'\n');console.log('Synced',p,'->',r.version);}else{console.log('Already in sync');}"
+          fi
+          # force electron-builder to use root package.json version
+          npx electron-builder --publish always --config.extraMetadata.version=$(node -p "require('./package.json').version")
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
