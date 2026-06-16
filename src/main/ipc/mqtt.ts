@@ -105,7 +105,19 @@ export function registerMqttConnectHandler() {
 
       mqttSender = ipcEvent.sender;
 
-      client = mqtt.connect(options.url, options);
+      const connectOptions: IClientOptions = { ...options };
+
+      if (options.caPath) {
+        connectOptions.ca = fs.readFileSync(options.caPath);
+      }
+      if (options.certPath) {
+        connectOptions.cert = fs.readFileSync(options.certPath);
+      }
+      if (options.keyPath) {
+        connectOptions.key = fs.readFileSync(options.keyPath);
+      }
+
+      client = mqtt.connect(options.url, connectOptions);
 
       client.on('connect', () => resolve('connected'));
 

@@ -29,7 +29,8 @@ This project is based on the electron react boilerplate.
 https://github.com/electron-react-boilerplate/electron-react-boilerplate
 
 
-Release info:
+## Release info:
 Commit & push to branch (main)
 npm version patch -m "Release v%s"
 Commit & push to branch (main)
+git push origin "vx.x.x"  

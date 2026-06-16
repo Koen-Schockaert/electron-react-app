@@ -91,11 +91,16 @@ export default function ProfileForm({
   const handleConnect = async () => {
     setTesting(true);
     try {
-      await window.mqttAPI.connect({
+      const connectPayload: any = {
         url: `${form.protocol}://${form.host}:${form.port}`,
         username: form.username,
         password: form.password,
-      });
+      };
+      if (form.caPath) connectPayload.caPath = form.caPath;
+      if (form.certPath) connectPayload.certPath = form.certPath;
+      if (form.keyPath) connectPayload.keyPath = form.keyPath;
+
+      await window.mqttAPI.connect(connectPayload);
       setConnected(true);
       setClientProfile(profile);
       setTestResult({ success: true, message: 'Connected!' });
