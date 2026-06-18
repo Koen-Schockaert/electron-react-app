@@ -169,65 +169,18 @@
     "webpack-merge": "^6.0.1"
   },
   "build": {
-    "productName": "MqttClient",
-    "appId": "mqtt-client",
-    "asar": true,
-    "afterSign": null,
-    "asarUnpack": "**\\*.{node,dll}",
-    "files": [
-      "dist",
-      "package.json"
-    ],
-    "mac": {
-      "notarize": false,
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "type": "distribution",
-      "hardenedRuntime": true,
-      "entitlements": "assets/entitlements.mac.plist",
-      "entitlementsInherit": "assets/entitlements.mac.plist",
-      "gatekeeperAssess": false
+    "directories": {
+      "buildResources": "assets"
     },
-    "dmg": {
-      "contents": [
-        {
-          "x": 130,
-          "y": 220
-        },
-        {
-          "x": 410,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
+    "appId": "com.koen.mqttclient",
+    "mac": {
+      "icon": "qbus-mqtt-client-logo.icns"
     },
     "win": {
-      "target": [
-        "nsis"
-      ]
+      "icon": "qbus-mqtt-client-logo.ico"
     },
     "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "category": "Development"
-    },
-    "directories": {
-      "app": "release/app",
-      "buildResources": "assets",
-      "output": "release/build"
-    },
-    "extraResources": [
-      "./assets/**"
-    ],
-    "publish": {
-      "provider": "github",
-      "owner": "Koen-Schockaert",
-      "repo": "electron-react-app",
-      "releaseType": "release"
+      "icon": "qbus-mqtt-client-logo.png"
     }
   },
   "repository": {
